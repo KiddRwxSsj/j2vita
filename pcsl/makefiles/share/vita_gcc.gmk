@@ -1,0 +1,15 @@
+CC              = arm-vita-eabi-gcc
+CPP             = arm-vita-eabi-g++
+LD              = arm-vita-eabi-g++
+AR              = arm-vita-eabi-ar -rc
+CC_OUTPUT       = -o
+AR_OUTPUT       =
+LD_OUTPUT       = -o
+LIB_EXT         = .a
+CFLAGS          = -c -DARM -D__vita__ -fno-strict-aliasing
+ifeq ($(USE_DEBUG), true)
+CFLAGS          += -g -O0
+else
+CFLAGS          += -O2
+endif
+LD_FLAGS        =

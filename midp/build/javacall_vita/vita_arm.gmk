@@ -1,0 +1,16 @@
+GNU_TOOLS_DIR = $(VITASDK)/arm-vita-eabi
+GNU_TOOLS_BINDIR = arm-vita-eabi-
+HOST_PLATFORM = javacall
+HOST_OS = javacall
+HOST_CPU = i386
+HOST_COMPILER = gcc
+TARGET_PLATFORM = javacall
+TARGET_OS = javacall
+TARGET_CPU = arm
+TARGET_DEVICE = vita
+TARGET_COMPILER = gcc
+TARGET_VM = cldc_vm
+EXTRA_CPPFLAGS += -DARM -D__vita__ -fno-strict-aliasing
+EXTRA_CFLAGS += -DARM -D__vita__ -fno-strict-aliasing
+PATHSEP = :
+LIBS += $(JAVACALL_LIB_DIR)/libjavacall$(g).a
