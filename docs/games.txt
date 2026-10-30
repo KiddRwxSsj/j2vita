@@ -1,0 +1,10 @@
+# J2Vita compatibility list
+#
+# One game per line:   Game name | Status | Notes
+# Status is one of:    Perfect, Playable, Issues, Broken
+# Notes are optional. Lines starting with # are ignored.
+# Save the file and the website updates on its own after a minute or two.
+
+Spider-Man: Toxic City | Playable |
+TEKKEN MOBILE | Playable | Fights load since 0.9.0
+The Amazing Spider-Man | Playable |

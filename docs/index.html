@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J2Vita</title>
+<style>
+  body { margin: 0; background: #ececec; color: #2b2b2b; font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 640px; margin: 40px auto; background: #fafafa; border: 1px solid #c8c8c8; border-radius: 10px; overflow: hidden; }
+  header { padding: 14px; text-align: center; border-bottom: 1px solid #c8c8c8; background: linear-gradient(#fff, #e4e4e4); }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  header p { margin: 2px 0 0; color: #777; font-size: 13px; }
+  nav { display: flex; border-bottom: 1px solid #c8c8c8; }
+  nav a { flex: 1; padding: 10px; text-align: center; color: #2b2b2b; text-decoration: none; }
+  nav a.on { background: linear-gradient(#707070, #474747); color: #fff; }
+  section { padding: 16px; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 8px 4px; border-bottom: 1px solid #ddd; text-align: left; vertical-align: top; }
+  th { font-weight: 600; color: #777; font-size: 13px; }
+  td.notes { color: #777; font-size: 13px; }
+  .Perfect { color: #2e8b57; } .Playable { color: #3d6e9e; } .Issues { color: #b8860b; } .Broken { color: #c0392b; }
+  .button { display: inline-block; padding: 9px 18px; border-radius: 6px; background: linear-gradient(#707070, #474747); color: #fff; text-decoration: none; }
+  a { color: #3d6e9e; }
+  footer { padding: 12px; text-align: center; color: #999; font-size: 12px; border-top: 1px solid #c8c8c8; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>J2Vita</h1>
+    <p>Java ME phone games on the PS Vita</p>
+  </header>
+  <nav>
+    <a href="#compatibility" id="tab-compatibility">Compatibility list</a>
+    <a href="#download" id="tab-download">Download</a>
+  </nav>
+
+  <section id="compatibility">
+    <table>
+      <thead><tr><th>Game</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody id="games"><tr><td colspan="3">Loading...</td></tr></tbody>
+    </table>
+  </section>
+
+  <section id="download">
+    <p><a class="button" href="https://github.com/KiddRwxSsj/j2vita/releases/latest/download/j2vita.vpk">Download j2vita.vpk</a></p>
+    <ol>
+      <li>Install the VPK with VitaShell (you need HENkaku/Ens&#333; and <code>libshacccg.suprx</code>).</li>
+      <li>Copy your <code>.jar</code> games to <code>ux0:data/j2vita/games/</code>.</li>
+      <li>Open J2Vita and press Square to install them.</li>
+    </ol>
+    <p>No games are included. <a href="https://github.com/KiddRwxSsj/j2vita/releases">All releases</a> &middot; <a href="https://github.com/KiddRwxSsj/j2vita">Source code</a></p>
+  </section>
+
+  <footer>Free software under the GPL v2. Not affiliated with Sony or Oracle.</footer>
+</main>
+<script>
+  // show one section at a time
+  function show() {
+    var id = location.hash === '#download' ? 'download' : 'compatibility';
+    ['compatibility', 'download'].forEach(function (s) {
+      document.getElementById(s).hidden = s !== id;
+      document.getElementById('tab-' + s).className = s === id ? 'on' : '';
+    });
+  }
+  window.onhashchange = show;
+  show();
+
+  // the list is games.txt: "Game | Status | Notes" per line
+  function cell(row, text, cls) {
+    var td = row.insertCell();
+    td.textContent = text;
+    if (cls) td.className = cls;
+  }
+  fetch('games.txt').then(function (r) { return r.text(); }).then(function (text) {
+    var body = document.getElementById('games');
+    body.innerHTML = '';
+    text.split('\n').forEach(function (line) {
+      line = line.trim();
+      if (!line || line[0] === '#') return;
+      var p = line.split('|').map(function (s) { return s.trim(); });
+      var row = body.insertRow();
+      cell(row, p[0]);
+      cell(row, p[1] || '', p[1]);
+      cell(row, p[2] || '', 'notes');
+    });
+    if (!body.rows.length) body.innerHTML = '<tr><td colspan="3">No games yet.</td></tr>';
+  });
+</script>
+</body>
+</html>
