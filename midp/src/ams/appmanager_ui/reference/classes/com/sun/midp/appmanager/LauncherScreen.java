@@ -10,13 +10,15 @@ import javax.microedition.lcdui.Graphics;
 import javax.microedition.lcdui.Image;
 
 import com.pspkvm.system.J2Vita;
+import com.sun.midp.installer.GameSync;
 import com.sun.midp.installer.J2Style;
 import com.sun.midp.midletsuite.MIDletSuiteInfo;
 import com.sun.midp.midletsuite.MIDletSuiteStorage;
 
 /**
  * J2Vita game list, drawn at 480x272 in the classic phone style of J2Style.
- * Cross plays, Triangle (or L / Start) opens Options, Square installs.
+ * Cross plays, Triangle (or L / Start) opens Options. JARs in the games
+ * folder show up on their own (GameSync).
  * The frontend sends Fire for Cross, '*' for Square, '#' for Triangle,
  * Soft1 for L/Start and Soft2 for Circle/R.
  */
@@ -25,8 +27,8 @@ final class LauncherScreen extends Canvas {
     private static final int ICON = 30;
 
     private static final int LIST = 0, OPTIONS = 1, CONFIRM = 2;
-    private static final int OPT_PLAY = 0, OPT_INSTALL = 1, OPT_DELETE = 2, OPT_SETTINGS = 3, OPT_QUIT = 4;
-    private static final String[] OPT_LABELS = {"Play", "Install games", "Delete game", "Settings", "Quit J2Vita"};
+    private static final int OPT_PLAY = 0, OPT_DELETE = 1, OPT_SETTINGS = 2, OPT_QUIT = 3;
+    private static final String[] OPT_LABELS = {"Play", "Delete game", "Settings", "Quit J2Vita"};
     private static final int OPT_W = 200, OPT_ROW = 24;
 
     private final AppManagerUI owner;
@@ -72,7 +74,8 @@ final class LauncherScreen extends Canvas {
         if (folder.items != null) {
             for (int i = 0; i < folder.items.length; i++) {
                 AMSMidletCustomItem it = folder.items[i];
-                if (it != null && it.msi != null && it.msi.suiteId >= 0) games.addElement(it);
+                if (it != null && it.msi != null && it.msi.suiteId >= 0
+                        && GameSync.visible(it.msi.suiteId)) games.addElement(it);
             }
         }
         if (folder.subfolders != null) {
@@ -138,6 +141,7 @@ final class LauncherScreen extends Canvas {
 
     protected void showNotify() {
         refresh();
+        owner.vitaSync();
         /* the native settings menu can switch the theme while we are shown */
         if (themeWatch == null) {
             themeWatch = new Timer();
@@ -170,7 +174,7 @@ final class LauncherScreen extends Canvas {
             paintConfirm(g, w, h);
             J2Style.softkeys(g, w, h, J2Style.CROSS, "Delete", J2Style.CIRCLE, "Cancel");
         } else if (games.size() == 0) {
-            J2Style.softkeys(g, w, h, J2Style.TRIANGLE, "Options", J2Style.SQUARE, "Install");
+            J2Style.softkeys(g, w, h, J2Style.TRIANGLE, "Options", J2Style.NO_GLYPH, null);
         } else {
             J2Style.softkeys(g, w, h, J2Style.TRIANGLE, "Options", J2Style.CROSS, "Play");
         }
@@ -179,8 +183,8 @@ final class LauncherScreen extends Canvas {
     private void paintEmpty(Graphics g, int w, int h) {
         int y = J2Style.TOP + 40;
         g.setColor(J2Style.TEXT);
-        g.drawString("No games installed", w / 2, y, Graphics.HCENTER | Graphics.TOP);
-        J2Style.wrap(g, "Copy .jar files to ux0:data/j2vita/games/ and press Square to install them.",
+        g.drawString("No games yet", w / 2, y, Graphics.HCENTER | Graphics.TOP);
+        J2Style.wrap(g, "Copy .jar files to ux0:data/j2vita/games/ and they show up here.",
                 w / 2, y + 34, w - 80, 4, J2Style.DIM, Graphics.HCENTER);
     }
 
@@ -233,7 +237,7 @@ final class LauncherScreen extends Canvas {
     }
 
     private boolean optEnabled(int i) {
-        return games.size() > 0 || i == OPT_INSTALL || i == OPT_SETTINGS || i == OPT_QUIT;
+        return games.size() > 0 || i == OPT_SETTINGS || i == OPT_QUIT;
     }
 
     private int optTop(int h) {
@@ -285,7 +289,6 @@ final class LauncherScreen extends Canvas {
         repaint();
         switch (i) {
         case OPT_PLAY: owner.vitaLaunch(current()); break;
-        case OPT_INSTALL: owner.vitaInstall(); break;
         case OPT_DELETE: mode = CONFIRM; break;
         case OPT_SETTINGS: J2Vita.openSettings(); break;
         case OPT_QUIT: J2Vita.quit(); break;
@@ -294,7 +297,7 @@ final class LauncherScreen extends Canvas {
 
     private void openOptions() {
         mode = OPTIONS;
-        opt = games.size() > 0 ? OPT_PLAY : OPT_INSTALL;
+        opt = games.size() > 0 ? OPT_PLAY : OPT_SETTINGS;
         repaint();
     }
 
@@ -325,8 +328,7 @@ final class LauncherScreen extends Canvas {
             else if (action == FIRE) runOption(opt);
             return;
         }
-        if (key == KEY_STAR) owner.vitaInstall();
-        else if (key == KEY_POUND || soft1) openOptions();
+        if (key == KEY_POUND || soft1) openOptions();
         else if (key >= KEY_NUM0 && key <= KEY_NUM9) return;
         else if (action == UP) move(-1);
         else if (action == DOWN) move(1);
@@ -371,8 +373,7 @@ final class LauncherScreen extends Canvas {
         }
         if (softbar) {
             if (x < w / 2) openOptions();
-            else if (games.size() == 0) owner.vitaInstall();
-            else owner.vitaLaunch(current());
+            else if (games.size() > 0) owner.vitaLaunch(current());
             return;
         }
         int y0 = J2Style.TOP + 2;

@@ -573,13 +573,47 @@ class AppManagerUI extends Form
     void vitaDeleteNow(AMSMidletCustomItem item) {
         if (item == null || item.msi == null) return;
         setLastSelectedMsi(item.msi);
+        String jar = com.sun.midp.installer.GameSync.jarOf(item.msi.suiteId);
         remove(item.msi);
+        if (jar != null) {
+            try {
+                new com.sun.midp.io.j2me.storage.File().delete(jar);
+            } catch (Throwable t) {
+            }
+        }
         showVitaHome();
     }
 
+    private boolean syncing;
 
-    void vitaInstall() {
-        manager.installSuite();
+    /** Picks up JARs added to or removed from the games folder. */
+    void vitaSync() {
+        synchronized (this) {
+            if (syncing) return;
+            syncing = true;
+        }
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    final boolean added = com.sun.midp.installer.GameSync.sync();
+                    display.callSerially(new Runnable() {
+                        public void run() {
+                            int[] gone = com.sun.midp.installer.GameSync.takeTouched();
+                            for (int i = 0; i < gone.length; i++) {
+                                AMSMidletCustomItem mci = rootFolder.find(gone[i]);
+                                if (mci == null) continue;
+                                if (mci.marked) markedItems.removeElement(mci);
+                                mci.remove();
+                            }
+                            if (added) addUnattachedMidlets(rootFolder);
+                            if (vitaHome != null) vitaHome.refresh();
+                        }
+                    });
+                } finally {
+                    syncing = false;
+                }
+            }
+        }).start();
     }
 
     void vitaExit() {
