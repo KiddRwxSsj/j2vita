@@ -46,8 +46,14 @@ static int max_heap_size = 0;
  * @param    outSize actual size of memory allocated
  * @return	  a pointer to the newly allocated memory, or <tt>0</tt> if not available
  */
-/* J2ME games rarely need more than a few MB, 32 MB leaves room for the AMS plus a game */
-#define JAVA_HEAP_MAX (32 * 1024 * 1024)
+/*
+ * This one block is the PCSL pool. JavaTask sizes the Java heap from
+ * javacall_total_heap_size() and the rest is left for native MIDP buffers.
+ * PNG decoding inflates the whole image in there, Rollercoaster Revolution
+ * has a 1024x1024 RGBA one that needs a single 4 MB chunk.
+ */
+#define JAVA_HEAP_MAX (64 * 1024 * 1024)
+#define NATIVE_RESERVE (16 * 1024 * 1024)
 #define JAVA_HEAP_MIN (8 * 1024 * 1024)
 
 void* javacall_memory_heap_allocate(int size, /*OUT*/ int* outSize) {
@@ -107,7 +113,7 @@ void  /*OPTIONAL*/ javacall_free(void* ptr) {
 }
 
 int javacall_total_heap_size() {
-    return max_heap_size;
+    return max_heap_size - NATIVE_RESERVE;
 }
     
 #ifdef __cplusplus
