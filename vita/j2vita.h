@@ -2,6 +2,9 @@
 #define J2VITA_H
 
 #include <stdint.h>
+#include <psp2/kernel/cpu.h>
+
+#define J2V_HELPER_CPUS (SCE_KERNEL_CPU_MASK_USER_1 | SCE_KERNEL_CPU_MASK_USER_2)
 
 #define J2V_DATA "ux0:data/j2vita"
 #define SCREEN_W 960
@@ -96,5 +99,11 @@ int keypad_input(uint32_t pressed, uint32_t buttons);
 int keypad_hit(int x, int y, int *key);
 void keypad_release_touch(void);
 void keypad_draw(uint32_t *fb, int w, int h);
+
+/* ime.c: Vita system keyboard, typed text goes to the game as key presses */
+void ime_open(void);
+int ime_busy(void);
+int ime_poll(void);      /* render thread */
+int ime_next_char(void); /* input thread */
 
 #endif

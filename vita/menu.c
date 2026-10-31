@@ -484,8 +484,8 @@ static int grid_h(void) { return TITLE_H + 6 + 7 * GRID_CH + 6 * 3 + 8 + SOFT_H;
 
 /* the phone keypad grid shared by the key picker and the on-screen keypad;
  * cursor is the focused cell, mark the key drawn with an accent outline */
-static void grid(int px, int py, int cw, const char *title, int cursor, int pressed, int mark,
-                 int lg, const char *left, int rg, const char *right) {
+static void grid(int px, int py, int cw, const char *const *names, const char *title, int cursor,
+                 int pressed, int mark, int lg, const char *left, int rg, const char *right) {
     int i, gy = panel(px, py, grid_w(cw), grid_h(), title, T(TC_BAR_TEXT), lg, left, rg, right) + 2;
     for (i = 0; i < 21; i++) {
         int x = px + 12 + (i % 3) * (cw + GRID_GAP), y = gy + (i / 3) * (GRID_CH + 3);
@@ -497,14 +497,14 @@ static void grid(int px, int py, int cw, const char *title, int cursor, int pres
             round_box(x, y, cw, GRID_CH, 4, edge, edge);
             round_box(x + 1, y + 1, cw - 2, GRID_CH - 2, 3, T(TC_PANEL_TOP), T(TC_WELL));
         }
-        text_center(x + cw / 2, y + 2 + (i == cursor && pressed ? 1 : 0), cw - 8, pick_names[i],
+        text_center(x + cw / 2, y + 2 + (i == cursor && pressed ? 1 : 0), cw - 8, names[i],
                     i == cursor ? COL_SEL_TEXT : marked ? COL_ACCENT : COL_TEXT);
     }
 }
 
 static void draw_picker(void) {
     int cw = 76, pw = grid_w(cw);
-    grid((fw - pw) / 2, (fh - grid_h()) / 2, cw, btn_names[ctl_sel], pick_sel, 0,
+    grid((fw - pw) / 2, (fh - grid_h()) / 2, cw, pick_names, btn_names[ctl_sel], pick_sel, 0,
          target()->map[ctl_sel], GLYPH_CROSS, "Set", GLYPH_CIRCLE, "Back");
 }
 
@@ -519,7 +519,13 @@ static void grid_move(int *cell, uint32_t p) {
 
 /* ---- on-screen keypad: sends phone keys to the running game (cheat codes) ---- */
 
-#define KP_CW 44
+#define KP_CW 56
+#define KP_TEXT 8 /* the picker's "None" cell opens the Vita keyboard here */
+
+static const char *kp_names[21] = {
+    "Soft L", "Up", "Soft R", "Left", "Fire", "Right", "Clear", "Down", "Text",
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "*", "0", "#",
+};
 
 static volatile int kp_open;
 static int kp_sel = 13, kp_left, kp_down, kp_touch = -1;
@@ -547,6 +553,8 @@ int keypad_input(uint32_t p, uint32_t buttons) {
     if (p & SCE_CTRL_SQUARE)
         kp_left = !kp_left;
     grid_move(&kp_sel, p);
+    if ((p & SCE_CTRL_CROSS) && kp_sel == KP_TEXT)
+        ime_open();
     kp_down = (buttons & SCE_CTRL_CROSS) != 0;
     if (kp_sel != old_sel || kp_down != old_down || kp_left != old_left)
         video_redraw();
@@ -571,6 +579,8 @@ int keypad_hit(int x, int y, int *key) {
     if (gx >= 0 && gy >= 0 && col < 3 && row < 7 && gx % (KP_CW + GRID_GAP) < KP_CW) {
         int cell = row * 3 + col;
         if (cell != kp_touch) {
+            if (cell == KP_TEXT)
+                ime_open();
             kp_touch = cell;
             kp_sel = cell;
             video_redraw();
@@ -594,7 +604,7 @@ void keypad_draw(uint32_t *buf, int w, int h) {
     fh = h;
     memset(fb, 0, (size_t)w * h * 4);
     kp_geometry(w, h, &px, &py);
-    grid(px, py, KP_CW, "Keypad", kp_sel, kp_down || kp_touch >= 0, JAVACALL_KEY_INVALID,
+    grid(px, py, KP_CW, kp_names, "Keypad", kp_sel, kp_down || kp_touch >= 0, JAVACALL_KEY_INVALID,
          GLYPH_CROSS, "Press", GLYPH_CIRCLE, "Hide");
 }
 

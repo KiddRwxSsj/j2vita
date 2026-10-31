@@ -240,11 +240,12 @@ static int render_thread(SceSize args, void *argp) {
 
     for (;;) {
         Layout l;
-        int menu, keypad, n;
-        SceUInt t = 50000;
+        int menu, keypad, n, ime;
+        SceUInt t = ime_busy() ? 16000 : 50000;
         SceUInt64 now;
 
         sceKernelWaitSema(wake_sema, 1, &t);
+        ime = ime_poll();
         menu = menu_is_open();
         keypad = !menu && keypad_is_open();
 
@@ -266,8 +267,8 @@ static int render_thread(SceSize args, void *argp) {
                 glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, OSD_W, OSD_H, GL_RGBA, GL_UNSIGNED_BYTE, osd_px);
             }
             fps_shown = 1;
-        } else if (!frame_dirty && !size_dirty && !menu && !fps_shown && !(keypad && overlay_dirty) &&
-                   kp_shown == keypad) {
+        } else if (!frame_dirty && !size_dirty && !menu && !ime && !fps_shown &&
+                   !(keypad && overlay_dirty) && kp_shown == keypad) {
             continue;
         }
         fps_shown = 0;
@@ -320,7 +321,8 @@ static int render_thread(SceSize args, void *argp) {
             glBindTexture(GL_TEXTURE_2D, tex_fps);
             quad(&f, 0);
         }
-        vglSwapBuffers(GL_FALSE);
+        /* the system keyboard is drawn on top by vitaGL while it is up */
+        vglSwapBuffers(ime ? GL_TRUE : GL_FALSE);
     }
     return 0;
 }
@@ -334,7 +336,7 @@ void video_start(void) {
     sceKernelCreateLwMutex(&lock, "j2v_video", 0, 0, NULL);
     wake_sema = sceKernelCreateSema("j2v_wake", 0, 0, 1, NULL);
     resume_sema = sceKernelCreateSema("j2v_resume", 0, 0, 1, NULL);
-    th = sceKernelCreateThread("j2v_render", render_thread, 0x10000100, 0x10000, 0, 0, NULL);
+    th = sceKernelCreateThread("j2v_render", render_thread, 0x10000100, 0x10000, J2V_HELPER_CPUS, 0, NULL);
     if (th >= 0)
         sceKernelStartThread(th, 0, NULL);
 }

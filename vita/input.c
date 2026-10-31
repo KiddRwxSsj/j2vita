@@ -11,6 +11,7 @@
 #define REPEAT_DELAY 25 /* ticks of 10ms */
 #define REPEAT_RATE 6
 #define KEYPAD_HOLD 50 /* ticks of 10ms holding SELECT that toggle the keypad */
+#define TYPE_GAP 8 /* ticks per typed character, half of them held down */
 /* buttons the on-screen keypad takes over while it is shown */
 #define KEYPAD_BUTTONS (SCE_CTRL_UP | SCE_CTRL_DOWN | SCE_CTRL_LEFT | SCE_CTRL_RIGHT | \
                         SCE_CTRL_CROSS | SCE_CTRL_CIRCLE | SCE_CTRL_SQUARE | SCE_CTRL_TRIANGLE)
@@ -118,6 +119,7 @@ static void game_keys(const SceCtrlData *pad, unsigned char *want) {
 static int input_thread(SceSize args, void *argp) {
     SceCtrlData pad;
     uint32_t last = 0, swallow = 0;
+    int typing = 0, type_ticks = 0;
     int idle = 0, was_menu = 0, was_game = 0, was_kp = 0, select_ticks = -1;
     (void)args; (void)argp;
 
@@ -141,6 +143,18 @@ static int input_thread(SceSize args, void *argp) {
             idle = 0;
             if (j2v_in_game)
                 sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_AUTO_SUSPEND);
+        }
+
+        if (ime_busy()) {
+            release_all();
+            swallow = pad.buttons;
+            continue;
+        }
+        if (type_ticks > 0 && --type_ticks == TYPE_GAP / 2) {
+            javanotify_key_event((javacall_key)typing, JAVACALL_KEYRELEASED);
+        } else if (type_ticks == 0 && (typing = ime_next_char()) != 0) {
+            javanotify_key_event((javacall_key)typing, JAVACALL_KEYPRESSED);
+            type_ticks = TYPE_GAP;
         }
 
         if (menu_is_open()) {
@@ -214,7 +228,7 @@ void input_start(void) {
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
     sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
     running = 1;
-    thread = sceKernelCreateThread("j2v_input", input_thread, 0x10000100, 0x4000, 0, 0, NULL);
+    thread = sceKernelCreateThread("j2v_input", input_thread, 0x10000100, 0x4000, J2V_HELPER_CPUS, 0, NULL);
     if (thread >= 0)
         sceKernelStartThread(thread, 0, NULL);
 }
