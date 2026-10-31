@@ -46,7 +46,17 @@ SUBSYSTEM_PSPKVM_EXT_JAVA_FILES += \
     $(PSPKVM_EXT_DIR)/src/classes/javax/bluetooth/L2CAPConnection.java \
     $(PSPKVM_EXT_DIR)/src/classes/javax/bluetooth/L2CAPConnectionNotifier.java \
     $(PSPKVM_EXT_DIR)/src/classes/javax/bluetooth/UUID.java \
-    $(PSPKVM_EXT_DIR)/src/classes/javax/bluetooth/DataElement.java
+    $(PSPKVM_EXT_DIR)/src/classes/javax/bluetooth/DataElement.java \
+    $(PSPKVM_EXT_DIR)/src/classes/javax/microedition/sensor/SensorManager.java \
+    $(PSPKVM_EXT_DIR)/src/classes/javax/microedition/sensor/SensorListener.java \
+    $(PSPKVM_EXT_DIR)/src/classes/javax/microedition/sensor/SensorInfo.java \
+    $(PSPKVM_EXT_DIR)/src/classes/javax/microedition/sensor/ChannelInfo.java \
+    $(PSPKVM_EXT_DIR)/src/classes/javax/microedition/sensor/Channel.java \
+    $(PSPKVM_EXT_DIR)/src/classes/javax/microedition/sensor/Unit.java \
+    $(PSPKVM_EXT_DIR)/src/classes/javax/microedition/sensor/MeasurementRange.java \
+    $(PSPKVM_EXT_DIR)/src/classes/javax/microedition/sensor/Data.java \
+    $(PSPKVM_EXT_DIR)/src/classes/javax/microedition/sensor/DataListener.java \
+    $(PSPKVM_EXT_DIR)/src/classes/javax/microedition/sensor/SensorConnection.java
 
 #
 # Native
