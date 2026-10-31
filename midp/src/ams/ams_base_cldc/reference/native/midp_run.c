@@ -682,6 +682,12 @@ midp_run_midlet_with_args_cp(SuiteIdType suiteId,
 
     putClassPathExtToSysProperty(classPathExt);
 
+    /*
+     * Phone VMs were lax here and plenty of games ship classes our verifier
+     * rejects (Heroic Epic 2). Game isolates copy this from the AMS isolate.
+     */
+    JVM_SetUseVerifier(KNI_FALSE);
+
     do {
         MIDP_ERROR status = MIDP_ERROR_NONE;
 
