@@ -8,3 +8,14 @@
 Spider-Man: Toxic City | Playable |
 TEKKEN MOBILE | Playable | Fights load since 0.9.0
 The Amazing Spider-Man | Playable |
+God of War: Betrayal | Playable |
+Block Breaker | Playable |
+Diamond Rush | Playable |
+G. I. JOE | Playable |
+Spider-Man: Ultimate Power | Playable |
+Little NinjaKing | Playable |
+Resident Evil Degeneration FP | Playable |
+Heroic Epic 2 | Broken | Crash after launch
+Heroic Epic | Issues | Game starts normally, freezes after selecting the sprite.
+TimeRider Ⅱ | Issues | BGM playback differs from Android J2ME emulators, audio mismatch
+Rollercoaster Revolution | Broken | Stuck infinitely on loading progress bar
