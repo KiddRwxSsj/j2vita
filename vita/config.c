@@ -12,6 +12,7 @@ void javacall_printf(const char *fmt, ...);
 const GameSize j2v_sizes[] = {
     {240, 320}, {176, 208}, {176, 220}, {128, 160},
     {320, 240}, {240, 400}, {360, 640}, {480, 272}, {640, 360},
+    {480, 320}, {320, 480},
 };
 const int j2v_size_count = sizeof(j2v_sizes) / sizeof(j2v_sizes[0]);
 
@@ -165,14 +166,41 @@ static int guess_size(const char *hint) {
     return -1;
 }
 
+/* games whose manifest and file name say nothing about the screen or keys they want */
+static const struct { const char *name; int w, h, keyset; } known[] = {
+    {"Rollercoaster Revolution", 480, 320, -1},
+    {"Resident Evil - The Missions", 176, 208, 0},
+    {"Resident Evil: Degeneration", 240, 320, 0},
+};
+
+static int known_game(const char *name) {
+    int i;
+    for (i = 0; name && i < (int)(sizeof(known) / sizeof(known[0])); i++)
+        if (strstr(name, known[i].name))
+            return i;
+    return -1;
+}
+
+static int known_size(int k) {
+    int j;
+    for (j = 0; k >= 0 && j < j2v_size_count; j++)
+        if (j2v_sizes[j].w == known[k].w && j2v_sizes[j].h == known[k].h)
+            return j;
+    return -1;
+}
+
 void cfg_select_game(const char *name, const char *hint) {
     cfg_defaults(&j2v_global);
     load(J2V_DATA "/config/default.cfg", &j2v_global);
     if (name) {
-        int s = guess_size(hint);
+        int k = known_game(name), s = known_size(k);
+        if (s < 0)
+            s = guess_size(hint);
         game_base = j2v_global;
         if (s >= 0)
             game_base.size = s;
+        if (k >= 0 && known[k].keyset >= 0)
+            game_base.keyset = known[k].keyset;
         j2v_cfg = game_base;
         file_for(name, game_file, sizeof(game_file));
         load(game_file, &j2v_cfg);
