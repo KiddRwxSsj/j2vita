@@ -460,6 +460,14 @@ $(MIDP_CLASSES_ZIP):: $(SUBSYSTEM_PSPKVM_EXT_JAVA_FILES)
 JTWI_NATIVE_FILES	+= $(SUBSYSTEM_PSPKVM_EXT_NATIVE_FILES)
 endif
 
+ifeq ($(USE_MICRO3D), true)
+# MascotCapsule Micro3D v3
+#
+$(MIDP_CLASSES_ZIP):: $(SUBSYSTEM_MICRO3D_JAVA_FILES)
+	$(appendjavafiles)
+JTWI_NATIVE_FILES	+= $(SUBSYSTEM_MICRO3D_NATIVE_FILES)
+endif
+
 
 #####################################################################
 # Include subsystem makefiles with "lazy" rules to be parsed after

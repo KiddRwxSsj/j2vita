@@ -445,6 +445,10 @@ ifeq ($(USE_PSPKVM_EXT), true)
 include $(PSPKVM_EXT_DIR)/src/config/$(SUBSYSTEM_MAKE_FILE)
 endif
 
+ifeq ($(USE_MICRO3D), true)
+include $(MICRO3D_DIR)/src/config/$(SUBSYSTEM_MAKE_FILE)
+endif
+
 
 #####################################################################
 # (Extra) Abstractions Subsystem

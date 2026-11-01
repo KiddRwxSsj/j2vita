@@ -1,0 +1,52 @@
+######################################################################
+# MascotCapsule Micro3D v3 (software renderer)
+######################################################################
+
+SUBSYSTEMS += MICRO3D
+
+SUBSYSTEM_MICRO3D_JAVA_FILES += \
+    $(MICRO3D_DIR)/src/classes/com/mascotcapsule/micro3d/v3/ActionTable.java \
+    $(MICRO3D_DIR)/src/classes/com/mascotcapsule/micro3d/v3/AffineTrans.java \
+    $(MICRO3D_DIR)/src/classes/com/mascotcapsule/micro3d/v3/Effect3D.java \
+    $(MICRO3D_DIR)/src/classes/com/mascotcapsule/micro3d/v3/Figure.java \
+    $(MICRO3D_DIR)/src/classes/com/mascotcapsule/micro3d/v3/FigureLayout.java \
+    $(MICRO3D_DIR)/src/classes/com/mascotcapsule/micro3d/v3/Graphics3D.java \
+    $(MICRO3D_DIR)/src/classes/com/mascotcapsule/micro3d/v3/Light.java \
+    $(MICRO3D_DIR)/src/classes/com/mascotcapsule/micro3d/v3/Render.java \
+    $(MICRO3D_DIR)/src/classes/com/mascotcapsule/micro3d/v3/Texture.java \
+    $(MICRO3D_DIR)/src/classes/com/mascotcapsule/micro3d/v3/Util3D.java \
+    $(MICRO3D_DIR)/src/classes/com/mascotcapsule/micro3d/v3/Vector3D.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/AnimationController.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/AnimationTrack.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Appearance.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Background.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Camera.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/CompositingMode.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Fog.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Graphics3D.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Group.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Image2D.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/IndexBuffer.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/KeyframeSequence.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Light.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Loader.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Material.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Mesh.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Native.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Node.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Object3D.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/PolygonMode.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/SkinnedMesh.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Sprite3D.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Texture2D.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Transform.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/Transformable.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/TriangleStripArray.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/VertexArray.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/VertexBuffer.java \
+    $(MICRO3D_DIR)/src/classes/javax/microedition/m3g/World.java
+
+vpath % $(MICRO3D_DIR)/src/native
+
+SUBSYSTEM_MICRO3D_NATIVE_FILES += \
+    micro3d_kni.c
