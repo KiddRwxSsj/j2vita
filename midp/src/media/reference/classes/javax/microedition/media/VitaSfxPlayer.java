@@ -76,7 +76,10 @@ final class VitaSfxPlayer implements Player, VolumeControl {
         }
 
         if (type.equalsIgnoreCase("audio/amr") ||
-                type.equalsIgnoreCase("audio/x-amr")) {
+                type.equalsIgnoreCase("audio/x-amr") ||
+                type.equalsIgnoreCase("audio/amr-wb") ||
+                type.equalsIgnoreCase("audio/x-amr-wb") ||
+                type.equalsIgnoreCase("audio/awb")) {
             return KIND_AMR;
         }
 

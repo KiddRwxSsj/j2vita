@@ -1,7 +1,8 @@
 /*
  * J2Vita audio backend for VitaMidiPlayer / VitaSfxPlayer on top of SDL2_mixer.
  * MIDI goes through SDL_mixer's built-in Timidity (one music stream at a time,
- * like most handsets), WAV goes to mixer channels, AMR is accepted but silent.
+ * like most handsets), WAV and AMR go to mixer channels. AMR is decoded by
+ * vita/amr.c; if that fails it stays silent but still runs for its real length.
  * Media times are in microseconds, as MIDP expects.
  */
 
@@ -30,7 +31,26 @@ typedef struct {
     int level;
     Uint32 started;
     Uint32 played_ms;
+    Uint32 length_ms;
+    Uint32 amr_end;
+    int amr_on;
 } Sound;
+
+/* 20 ms frames, size from the frame type in each header byte */
+static Uint32 amr_length_ms(const unsigned char *d, int len) {
+    static const unsigned char nb[16] = {13, 14, 16, 18, 20, 21, 27, 32, 6, 1, 1, 1, 1, 1, 1, 1};
+    static const unsigned char wb[16] = {18, 24, 33, 37, 41, 47, 51, 59, 61, 6, 1, 1, 1, 1, 1, 1};
+    const unsigned char *sz;
+    int p, frames = 0;
+    if (len >= 9 && !memcmp(d, "#!AMR-WB\n", 9)) { sz = wb; p = 9; }
+    else if (len >= 6 && !memcmp(d, "#!AMR\n", 6)) { sz = nb; p = 6; }
+    else return 1000;
+    while (p < len) {
+        p += sz[(d[p] >> 3) & 15];
+        frames++;
+    }
+    return (Uint32)frames * 20;
+}
 
 static int audio_state; /* 0 untried, 1 ok, -1 failed */
 static Sound *current_music;
@@ -57,6 +77,9 @@ static int audio_init(void) {
     return 1;
 }
 
+/* vita/amr.c */
+short *amr_to_pcm(const unsigned char *d, int len, int out_rate, int *out_frames);
+
 static Sound *from_handle(jint h) { return (Sound *)(intptr_t)h; }
 
 static int music_active(Sound *s) {
@@ -66,6 +89,8 @@ static int music_active(Sound *s) {
 static int sound_playing(Sound *s) {
     if (!s || audio_state <= 0)
         return 0;
+    if (s->kind == KIND_AMR)
+        return s->amr_on && (s->amr_end == 0 || (Sint32)(s->amr_end - SDL_GetTicks()) > 0);
     if (s->kind == KIND_MIDI)
         return music_active(s);
     return s->channel >= 0 && Mix_Playing(s->channel) &&
@@ -87,7 +112,9 @@ static void sound_stop(Sound *s) {
         return;
     if (sound_playing(s))
         s->played_ms += SDL_GetTicks() - s->started;
-    if (s->kind == KIND_MIDI) {
+    if (s->kind == KIND_AMR) {
+        s->amr_on = 0;
+    } else if (s->kind == KIND_MIDI) {
         if (s == current_music) {
             Mix_HaltMusic();
             current_music = NULL;
@@ -108,8 +135,13 @@ static int sdl_loops(jint n) {
 static int sound_start(Sound *s, jint loops) {
     if (!s || audio_state <= 0)
         return 0;
-    if (s->kind == KIND_AMR)
+    if (s->kind == KIND_AMR) {
+        s->started = SDL_GetTicks();
+        s->amr_on = 1;
+        s->amr_end = loops < 0 ? 0 : s->started + s->length_ms * (Uint32)(loops > 1 ? loops : 1);
+        if (s->amr_end == 0) s->amr_end = loops < 0 ? 0 : 1;
         return 1;
+    }
     if (s->kind == KIND_MIDI) {
         if (!s->music)
             return 0;
@@ -169,7 +201,22 @@ static jint sound_create(int kind) {
     s->kind = kind;
     s->channel = -1;
     s->level = 100;
-    if (kind != KIND_AMR) {
+    if (kind == KIND_AMR) {
+        int frames = 0;
+        short *pcm = amr_to_pcm((const unsigned char *)JavaByteArray(data), (int)len, AUDIO_RATE, &frames);
+        s->length_ms = amr_length_ms((const unsigned char *)JavaByteArray(data), (int)len);
+        if (pcm && frames > 0) {
+            s->chunk = Mix_QuickLoad_RAW((Uint8 *)pcm, (Uint32)frames * 4);
+            if (s->chunk) {
+                s->data = (unsigned char *)pcm;
+                s->kind = KIND_WAV;
+            } else {
+                free(pcm);
+            }
+        } else {
+            free(pcm);
+        }
+    } else {
         SDL_RWops *rw;
         s->data = (unsigned char *)malloc((size_t)len);
         if (!s->data)
@@ -323,6 +370,8 @@ Java_javax_microedition_media_VitaSfxPlayer_nGetDuration(void) {
     if (s && s->chunk) {
         /* chunk is 16-bit stereo at AUDIO_RATE after Mix_LoadWAV conversion */
         us = (jlong)s->chunk->alen * 1000000 / (AUDIO_RATE * 4);
+    } else if (s && s->kind == KIND_AMR) {
+        us = (jlong)s->length_ms * 1000;
     }
     KNI_ReturnLong(us);
 }

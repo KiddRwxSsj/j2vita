@@ -52,11 +52,14 @@ make -C "$WS_ROOT/midp/build/javacall_vita" JDK_DIR="$JDK_DIR" USE_NATIVE_AMS=fa
   USE_JSR_75=true JSR_75_DIR="$WS_ROOT/jsr75" USE_JSR_135=false USE_JSR_179=false \
   USE_NOKIA_UI=true NOKIA_UI_DIR="$WS_ROOT/ext/nokia" \
   USE_PSPKVM_EXT=true PSPKVM_EXT_DIR="$WS_ROOT/ext/pspkvm" \
+  USE_MICRO3D=true MICRO3D_DIR="$WS_ROOT/ext/micro3d" \
   SOFT_KEYBOARD_ENABLED=false JSR_172_DIR="$WS_ROOT/jsr172" USE_JSR_172=true \
   USE_JSR_226=true JSR_226_DIR="$WS_ROOT/jsr226" PISCES_DIR="$WS_ROOT/pisces"
 
 FREEPATS="${FREEPATS:-$WS_ROOT/build/freepats}"
 VITAGL="${VITAGL:-$WS_ROOT/build/vitagl}"
+FFAMR="${FFAMR:-$WS_ROOT/build/ffmpeg-amr}"
 "$WS_ROOT/scripts/build-vitagl.sh" "$VITAGL"
 "$WS_ROOT/scripts/fetch-freepats.sh" "$FREEPATS"
-make -C "$WS_ROOT/vita" -j"$JOBS" FREEPATS="$FREEPATS" VITAGL="$VITAGL"
+"$WS_ROOT/scripts/build-ffmpeg-amr.sh" "$FFAMR"
+make -C "$WS_ROOT/vita" -j"$JOBS" FREEPATS="$FREEPATS" VITAGL="$VITAGL" FFAMR="$FFAMR"

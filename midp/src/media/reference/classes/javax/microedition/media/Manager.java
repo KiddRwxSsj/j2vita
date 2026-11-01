@@ -527,7 +527,8 @@ public final class Manager {
                 "audio/wav",
                 "audio/wave",
                 "audio/amr",
-                "audio/x-amr"
+                "audio/x-amr",
+                "audio/amr-wb"
             };
         }
         return new String[0];
