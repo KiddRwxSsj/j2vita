@@ -69,3 +69,4 @@ KNIEXPORT KNI_RETURNTYPE_INT
 KNIDECL(com_pspkvm_system_J2Vita_themeSerial) {
     KNI_ReturnInt(j2v_theme_serial);
 }
+

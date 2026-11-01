@@ -1,6 +1,8 @@
 #include "javacall_time.h"
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/kernel/processmgr.h>
+#include <psp2/kernel/cpu.h>
+#define J2V_HELPER_CPUS (SCE_KERNEL_CPU_MASK_USER_1 | SCE_KERNEL_CPU_MASK_USER_2)
 #include <sys/time.h>
 #include <time.h>
 #include <stdint.h>
@@ -65,7 +67,7 @@ javacall_result javacall_time_initialize_timer(int ms, javacall_bool cyclic,
     a.slot = i;
     a.gen = timers[i].gen;
 
-    th = sceKernelCreateThread("j2v_timer", timer_thread, 0x10000100, 0x8000, 0, 0, NULL);
+    th = sceKernelCreateThread("j2v_timer", timer_thread, 0x10000100, 0x8000, J2V_HELPER_CPUS, 0, NULL);
     if (th < 0 || sceKernelStartThread(th, sizeof(a), &a) < 0) {
         if (th >= 0)
             sceKernelDeleteThread(th);

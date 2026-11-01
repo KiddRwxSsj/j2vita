@@ -82,8 +82,9 @@ extern "C" {
   typedef void       (*void_func_t)(Thread* THREAD, ...);
   typedef jint       (*int_func_t)(Thread* THREAD, ...);
   typedef jlong      (*long_func_t)(Thread* THREAD, ...);
-  typedef jfloat     (*float_func_t)(Thread* THREAD, ...);
-  typedef jdouble    (*double_func_t)(Thread* THREAD, ...);
+  // not variadic: hard-float ABI returns variadic floats in r0, natives use s0/d0
+  typedef jfloat     (*float_func_t)(Thread* THREAD, jint, jint);
+  typedef jdouble    (*double_func_t)(Thread* THREAD, jint, jint);
   typedef jboolean   (*boolean_func_t)(Thread* THREAD, ...);
   typedef jchar      (*char_func_t)(Thread* THREAD, ...);
   typedef jshort     (*short_func_t)(Thread* THREAD, ...);
@@ -101,10 +102,23 @@ extern "C" {
   } basic_value;
 
   /* global VM pointers */
+#if defined(__vita__) && !defined(__thumb__)
+#define J2V_THREADED 1
+#define BC_INLINE static inline __attribute__((always_inline))
+  /* pinned like the MIPS port: every bytecode touches these. Safe because
+     resume_thread() reloads them after each C call and each longjmp */
+  register address g_jsp     asm("r10");
+  register address g_jpc     asm("r9");
+  register address g_jlocals asm("r8");
+  static address  g_jfp;     /* Java frame pointer   */
+#else
   static address  g_jfp;     /* Java frame pointer   */
   static address  g_jsp;     /* Java stack pointer   */
   static address  g_jpc;     /* Java program counter */
   static address  g_jlocals; /* current Java method locals pointer */
+#define J2V_THREADED 0
+#define BC_INLINE static
+#endif
 
   /* used to return from interpreter via longjmp */
   static jmp_buf interpreter_env;
@@ -1254,11 +1268,11 @@ enum {
         jfloat val;
         switch (num_args) {
         case 0:
-          val = f(NATIVE_ARG);
+          val = f(NATIVE_ARG, 0, 0);
           break;
         case 1:
           arg1 = va_arg(ap, jint);
-          val = f(NATIVE_ARG, arg1);
+          val = f(NATIVE_ARG, arg1, 0);
           break;
         case 2:
           arg1 = va_arg(ap, jint);
@@ -1279,11 +1293,11 @@ enum {
 
         switch (num_args) {
         case 0:
-          acc.double_value = f(NATIVE_ARG);
+          acc.double_value = f(NATIVE_ARG, 0, 0);
           break;
         case 1:
           arg1 = va_arg(ap, jint);
-          acc.double_value = f(NATIVE_ARG, arg1);
+          acc.double_value = f(NATIVE_ARG, arg1, 0);
           break;
         case 2:
           arg1 = va_arg(ap, jint);
@@ -2487,14 +2501,14 @@ enum {
 
 #define START_BYTECODES
 #define END_BYTECODES
-#define BYTECODE_IMPL_NO_STEP(x) static void bc_impl_##x() {
+#define BYTECODE_IMPL_NO_STEP(x) BC_INLINE void bc_impl_##x() {
 #if ENABLE_JAVA_DEBUGGER
-#define BYTECODE_IMPL(x) static void bc_impl_##x() {            \
+#define BYTECODE_IMPL(x) BC_INLINE void bc_impl_##x() {            \
   if (_debugger_active & DEBUGGER_STEPPING) {                   \
     interpreter_call_vm((address)&handle_single_step, T_VOID);  \
   }
 #else
-#define BYTECODE_IMPL(x) static void bc_impl_##x() {
+#define BYTECODE_IMPL(x) BC_INLINE void bc_impl_##x() {
 #endif
 #define BYTECODE_IMPL_END }
 
@@ -4618,6 +4632,534 @@ static void init() {
 }
 #undef MY_GUARANTEE
 
+
+#if J2V_THREADED
+// GCC computed goto: one indirect jump per bytecode body, so the Cortex-A9
+// predicts each one on its own instead of a single shared call site
+static void Interpret_threaded() {
+  static const void *labels[256];
+#define NEXT_BC goto *labels[*g_jpc]
+  if (!labels[0]) {
+    for (int i = 0; i < 256; i++) labels[i] = &&bc_undef;
+    labels[Bytecodes::_nop] = &&bc_nop;
+    labels[Bytecodes::_aconst_null] = &&bc_aconst_null;
+    labels[Bytecodes::_iconst_m1] = &&bc_iconst_m1;
+    labels[Bytecodes::_iconst_0] = &&bc_iconst_0;
+    labels[Bytecodes::_iconst_1] = &&bc_iconst_1;
+    labels[Bytecodes::_iconst_2] = &&bc_iconst_2;
+    labels[Bytecodes::_iconst_3] = &&bc_iconst_3;
+    labels[Bytecodes::_iconst_4] = &&bc_iconst_4;
+    labels[Bytecodes::_iconst_5] = &&bc_iconst_5;
+    labels[Bytecodes::_lconst_0] = &&bc_lconst_0;
+    labels[Bytecodes::_lconst_1] = &&bc_lconst_1;
+    labels[Bytecodes::_fconst_0] = &&bc_fconst_0;
+    labels[Bytecodes::_fconst_1] = &&bc_fconst_1;
+    labels[Bytecodes::_fconst_2] = &&bc_fconst_2;
+    labels[Bytecodes::_dconst_0] = &&bc_dconst_0;
+    labels[Bytecodes::_dconst_1] = &&bc_dconst_1;
+    labels[Bytecodes::_bipush] = &&bc_bipush;
+    labels[Bytecodes::_sipush] = &&bc_sipush;
+    labels[Bytecodes::_ldc] = &&bc_ldc;
+    labels[Bytecodes::_ldc_w] = &&bc_ldc_w;
+    labels[Bytecodes::_ldc2_w] = &&bc_ldc2_w;
+    labels[Bytecodes::_iload] = &&bc_iload;
+    labels[Bytecodes::_lload] = &&bc_lload;
+    labels[Bytecodes::_fload] = &&bc_fload;
+    labels[Bytecodes::_dload] = &&bc_dload;
+    labels[Bytecodes::_aload] = &&bc_aload;
+    labels[Bytecodes::_iload_0] = &&bc_iload_0;
+    labels[Bytecodes::_iload_1] = &&bc_iload_1;
+    labels[Bytecodes::_iload_2] = &&bc_iload_2;
+    labels[Bytecodes::_iload_3] = &&bc_iload_3;
+    labels[Bytecodes::_lload_0] = &&bc_lload_0;
+    labels[Bytecodes::_lload_1] = &&bc_lload_1;
+    labels[Bytecodes::_lload_2] = &&bc_lload_2;
+    labels[Bytecodes::_lload_3] = &&bc_lload_3;
+    labels[Bytecodes::_fload_0] = &&bc_fload_0;
+    labels[Bytecodes::_fload_1] = &&bc_fload_1;
+    labels[Bytecodes::_fload_2] = &&bc_fload_2;
+    labels[Bytecodes::_fload_3] = &&bc_fload_3;
+    labels[Bytecodes::_dload_0] = &&bc_dload_0;
+    labels[Bytecodes::_dload_1] = &&bc_dload_1;
+    labels[Bytecodes::_dload_2] = &&bc_dload_2;
+    labels[Bytecodes::_dload_3] = &&bc_dload_3;
+    labels[Bytecodes::_aload_0] = &&bc_aload_0;
+    labels[Bytecodes::_aload_1] = &&bc_aload_1;
+    labels[Bytecodes::_aload_2] = &&bc_aload_2;
+    labels[Bytecodes::_aload_3] = &&bc_aload_3;
+    labels[Bytecodes::_iaload] = &&bc_iaload;
+    labels[Bytecodes::_laload] = &&bc_laload;
+    labels[Bytecodes::_faload] = &&bc_faload;
+    labels[Bytecodes::_daload] = &&bc_daload;
+    labels[Bytecodes::_aaload] = &&bc_aaload;
+    labels[Bytecodes::_baload] = &&bc_baload;
+    labels[Bytecodes::_caload] = &&bc_caload;
+    labels[Bytecodes::_saload] = &&bc_saload;
+    labels[Bytecodes::_istore] = &&bc_istore;
+    labels[Bytecodes::_lstore] = &&bc_lstore;
+    labels[Bytecodes::_fstore] = &&bc_fstore;
+    labels[Bytecodes::_dstore] = &&bc_dstore;
+    labels[Bytecodes::_astore] = &&bc_astore;
+    labels[Bytecodes::_istore_0] = &&bc_istore_0;
+    labels[Bytecodes::_istore_1] = &&bc_istore_1;
+    labels[Bytecodes::_istore_2] = &&bc_istore_2;
+    labels[Bytecodes::_istore_3] = &&bc_istore_3;
+    labels[Bytecodes::_lstore_0] = &&bc_lstore_0;
+    labels[Bytecodes::_lstore_1] = &&bc_lstore_1;
+    labels[Bytecodes::_lstore_2] = &&bc_lstore_2;
+    labels[Bytecodes::_lstore_3] = &&bc_lstore_3;
+    labels[Bytecodes::_fstore_0] = &&bc_fstore_0;
+    labels[Bytecodes::_fstore_1] = &&bc_fstore_1;
+    labels[Bytecodes::_fstore_2] = &&bc_fstore_2;
+    labels[Bytecodes::_fstore_3] = &&bc_fstore_3;
+    labels[Bytecodes::_dstore_0] = &&bc_dstore_0;
+    labels[Bytecodes::_dstore_1] = &&bc_dstore_1;
+    labels[Bytecodes::_dstore_2] = &&bc_dstore_2;
+    labels[Bytecodes::_dstore_3] = &&bc_dstore_3;
+    labels[Bytecodes::_astore_0] = &&bc_astore_0;
+    labels[Bytecodes::_astore_1] = &&bc_astore_1;
+    labels[Bytecodes::_astore_2] = &&bc_astore_2;
+    labels[Bytecodes::_astore_3] = &&bc_astore_3;
+    labels[Bytecodes::_iastore] = &&bc_iastore;
+    labels[Bytecodes::_lastore] = &&bc_lastore;
+    labels[Bytecodes::_fastore] = &&bc_fastore;
+    labels[Bytecodes::_dastore] = &&bc_dastore;
+    labels[Bytecodes::_aastore] = &&bc_aastore;
+    labels[Bytecodes::_bastore] = &&bc_bastore;
+    labels[Bytecodes::_castore] = &&bc_castore;
+    labels[Bytecodes::_sastore] = &&bc_sastore;
+    labels[Bytecodes::_pop] = &&bc_pop;
+    labels[Bytecodes::_pop2] = &&bc_pop2;
+    labels[Bytecodes::_dup] = &&bc_dup;
+    labels[Bytecodes::_dup_x1] = &&bc_dup_x1;
+    labels[Bytecodes::_dup_x2] = &&bc_dup_x2;
+    labels[Bytecodes::_dup2] = &&bc_dup2;
+    labels[Bytecodes::_dup2_x1] = &&bc_dup2_x1;
+    labels[Bytecodes::_dup2_x2] = &&bc_dup2_x2;
+    labels[Bytecodes::_swap] = &&bc_swap;
+    labels[Bytecodes::_iadd] = &&bc_iadd;
+    labels[Bytecodes::_ladd] = &&bc_ladd;
+    labels[Bytecodes::_fadd] = &&bc_fadd;
+    labels[Bytecodes::_dadd] = &&bc_dadd;
+    labels[Bytecodes::_isub] = &&bc_isub;
+    labels[Bytecodes::_lsub] = &&bc_lsub;
+    labels[Bytecodes::_fsub] = &&bc_fsub;
+    labels[Bytecodes::_dsub] = &&bc_dsub;
+    labels[Bytecodes::_imul] = &&bc_imul;
+    labels[Bytecodes::_lmul] = &&bc_lmul;
+    labels[Bytecodes::_fmul] = &&bc_fmul;
+    labels[Bytecodes::_dmul] = &&bc_dmul;
+    labels[Bytecodes::_idiv] = &&bc_idiv;
+    labels[Bytecodes::_ldiv] = &&bc_ldiv;
+    labels[Bytecodes::_fdiv] = &&bc_fdiv;
+    labels[Bytecodes::_ddiv] = &&bc_ddiv;
+    labels[Bytecodes::_irem] = &&bc_irem;
+    labels[Bytecodes::_lrem] = &&bc_lrem;
+    labels[Bytecodes::_frem] = &&bc_frem;
+    labels[Bytecodes::_drem] = &&bc_drem;
+    labels[Bytecodes::_ineg] = &&bc_ineg;
+    labels[Bytecodes::_lneg] = &&bc_lneg;
+    labels[Bytecodes::_fneg] = &&bc_fneg;
+    labels[Bytecodes::_dneg] = &&bc_dneg;
+    labels[Bytecodes::_ishl] = &&bc_ishl;
+    labels[Bytecodes::_lshl] = &&bc_lshl;
+    labels[Bytecodes::_ishr] = &&bc_ishr;
+    labels[Bytecodes::_lshr] = &&bc_lshr;
+    labels[Bytecodes::_iushr] = &&bc_iushr;
+    labels[Bytecodes::_lushr] = &&bc_lushr;
+    labels[Bytecodes::_iand] = &&bc_iand;
+    labels[Bytecodes::_land] = &&bc_land;
+    labels[Bytecodes::_ior] = &&bc_ior;
+    labels[Bytecodes::_lor] = &&bc_lor;
+    labels[Bytecodes::_ixor] = &&bc_ixor;
+    labels[Bytecodes::_lxor] = &&bc_lxor;
+    labels[Bytecodes::_iinc] = &&bc_iinc;
+    labels[Bytecodes::_i2l] = &&bc_i2l;
+    labels[Bytecodes::_i2f] = &&bc_i2f;
+    labels[Bytecodes::_i2d] = &&bc_i2d;
+    labels[Bytecodes::_l2i] = &&bc_l2i;
+    labels[Bytecodes::_l2f] = &&bc_l2f;
+    labels[Bytecodes::_l2d] = &&bc_l2d;
+    labels[Bytecodes::_f2i] = &&bc_f2i;
+    labels[Bytecodes::_f2l] = &&bc_f2l;
+    labels[Bytecodes::_f2d] = &&bc_f2d;
+    labels[Bytecodes::_d2i] = &&bc_d2i;
+    labels[Bytecodes::_d2l] = &&bc_d2l;
+    labels[Bytecodes::_d2f] = &&bc_d2f;
+    labels[Bytecodes::_i2b] = &&bc_i2b;
+    labels[Bytecodes::_i2c] = &&bc_i2c;
+    labels[Bytecodes::_i2s] = &&bc_i2s;
+    labels[Bytecodes::_lcmp] = &&bc_lcmp;
+    labels[Bytecodes::_fcmpl] = &&bc_fcmpl;
+    labels[Bytecodes::_fcmpg] = &&bc_fcmpg;
+    labels[Bytecodes::_dcmpl] = &&bc_dcmpl;
+    labels[Bytecodes::_dcmpg] = &&bc_dcmpg;
+    labels[Bytecodes::_ifeq] = &&bc_ifeq;
+    labels[Bytecodes::_ifne] = &&bc_ifne;
+    labels[Bytecodes::_iflt] = &&bc_iflt;
+    labels[Bytecodes::_ifge] = &&bc_ifge;
+    labels[Bytecodes::_ifgt] = &&bc_ifgt;
+    labels[Bytecodes::_ifle] = &&bc_ifle;
+    labels[Bytecodes::_if_icmpeq] = &&bc_if_icmpeq;
+    labels[Bytecodes::_if_icmpne] = &&bc_if_icmpne;
+    labels[Bytecodes::_if_icmplt] = &&bc_if_icmplt;
+    labels[Bytecodes::_if_icmpge] = &&bc_if_icmpge;
+    labels[Bytecodes::_if_icmpgt] = &&bc_if_icmpgt;
+    labels[Bytecodes::_if_icmple] = &&bc_if_icmple;
+    labels[Bytecodes::_if_acmpeq] = &&bc_if_acmpeq;
+    labels[Bytecodes::_if_acmpne] = &&bc_if_acmpne;
+    labels[Bytecodes::_goto] = &&bc_goto;
+    labels[Bytecodes::_tableswitch] = &&bc_tableswitch;
+    labels[Bytecodes::_lookupswitch] = &&bc_lookupswitch;
+    labels[Bytecodes::_ireturn] = &&bc_ireturn;
+    labels[Bytecodes::_lreturn] = &&bc_lreturn;
+    labels[Bytecodes::_freturn] = &&bc_freturn;
+    labels[Bytecodes::_dreturn] = &&bc_dreturn;
+    labels[Bytecodes::_areturn] = &&bc_areturn;
+    labels[Bytecodes::_return] = &&bc_return;
+    labels[Bytecodes::_getstatic] = &&bc_getstatic;
+    labels[Bytecodes::_putstatic] = &&bc_putstatic;
+    labels[Bytecodes::_getfield] = &&bc_getfield;
+    labels[Bytecodes::_putfield] = &&bc_putfield;
+    labels[Bytecodes::_invokevirtual] = &&bc_invokevirtual;
+    labels[Bytecodes::_invokespecial] = &&bc_invokespecial;
+    labels[Bytecodes::_invokestatic] = &&bc_invokestatic;
+    labels[Bytecodes::_invokeinterface] = &&bc_invokeinterface;
+    labels[Bytecodes::_new] = &&bc_new;
+    labels[Bytecodes::_newarray] = &&bc_newarray;
+    labels[Bytecodes::_arraylength] = &&bc_arraylength;
+    labels[Bytecodes::_athrow] = &&bc_athrow;
+    labels[Bytecodes::_checkcast] = &&bc_checkcast;
+    labels[Bytecodes::_instanceof] = &&bc_instanceof;
+    labels[Bytecodes::_monitorenter] = &&bc_monitorenter;
+    labels[Bytecodes::_monitorexit] = &&bc_monitorexit;
+    labels[Bytecodes::_wide] = &&bc_wide;
+    labels[Bytecodes::_anewarray] = &&bc_anewarray;
+    labels[Bytecodes::_multianewarray] = &&bc_multianewarray;
+    labels[Bytecodes::_ifnull] = &&bc_ifnull;
+    labels[Bytecodes::_ifnonnull] = &&bc_ifnonnull;
+    labels[Bytecodes::_goto_w] = &&bc_goto_w;
+    labels[Bytecodes::_breakpoint] = &&bc_breakpoint;
+    labels[Bytecodes::_fast_1_ldc] = &&bc_fast_1_ldc;
+    labels[Bytecodes::_fast_1_ldc_w] = &&bc_fast_1_ldc_w;
+    labels[Bytecodes::_fast_2_ldc_w] = &&bc_fast_2_ldc_w;
+    labels[Bytecodes::_fast_1_putstatic] = &&bc_fast_1_putstatic;
+    labels[Bytecodes::_fast_2_putstatic] = &&bc_fast_2_putstatic;
+    labels[Bytecodes::_fast_a_putstatic] = &&bc_fast_a_putstatic;
+    labels[Bytecodes::_fast_1_getstatic] = &&bc_fast_1_getstatic;
+    labels[Bytecodes::_fast_2_getstatic] = &&bc_fast_2_getstatic;
+    labels[Bytecodes::_fast_bputfield] = &&bc_fast_bputfield;
+    labels[Bytecodes::_fast_sputfield] = &&bc_fast_sputfield;
+    labels[Bytecodes::_fast_iputfield] = &&bc_fast_iputfield;
+    labels[Bytecodes::_fast_lputfield] = &&bc_fast_lputfield;
+    labels[Bytecodes::_fast_fputfield] = &&bc_fast_fputfield;
+    labels[Bytecodes::_fast_dputfield] = &&bc_fast_dputfield;
+    labels[Bytecodes::_fast_aputfield] = &&bc_fast_aputfield;
+    labels[Bytecodes::_fast_bgetfield] = &&bc_fast_bgetfield;
+    labels[Bytecodes::_fast_sgetfield] = &&bc_fast_sgetfield;
+    labels[Bytecodes::_fast_igetfield] = &&bc_fast_igetfield;
+    labels[Bytecodes::_fast_lgetfield] = &&bc_fast_lgetfield;
+    labels[Bytecodes::_fast_fgetfield] = &&bc_fast_fgetfield;
+    labels[Bytecodes::_fast_dgetfield] = &&bc_fast_dgetfield;
+    labels[Bytecodes::_fast_agetfield] = &&bc_fast_agetfield;
+    labels[Bytecodes::_fast_cgetfield] = &&bc_fast_cgetfield;
+    labels[Bytecodes::_fast_invokevirtual] = &&bc_fast_invokevirtual;
+    labels[Bytecodes::_fast_invokestatic] = &&bc_fast_invokestatic;
+    labels[Bytecodes::_fast_invokeinterface] = &&bc_fast_invokeinterface;
+    labels[Bytecodes::_fast_invokenative] = &&bc_fast_invokenative;
+    labels[Bytecodes::_fast_new] = &&bc_fast_new;
+    labels[Bytecodes::_fast_anewarray] = &&bc_fast_anewarray;
+    labels[Bytecodes::_fast_checkcast] = &&bc_fast_checkcast;
+    labels[Bytecodes::_fast_instanceof] = &&bc_fast_instanceof;
+    labels[Bytecodes::_fast_invokevirtual_final] = &&bc_fast_invokevirtual_final;
+    labels[Bytecodes::_fast_invokespecial] = &&bc_fast_invokespecial;
+    labels[Bytecodes::_fast_igetfield_1] = &&bc_fast_igetfield_1;
+    labels[Bytecodes::_fast_agetfield_1] = &&bc_fast_agetfield_1;
+#if !ENABLE_CPU_VARIANT
+    labels[Bytecodes::_aload_0_fast_igetfield_1] = &&bc_aload_0_fast_igetfield_1;
+    labels[Bytecodes::_aload_0_fast_igetfield_4] = &&bc_aload_0_fast_igetfield_4;
+    labels[Bytecodes::_aload_0_fast_igetfield_8] = &&bc_aload_0_fast_igetfield_8;
+    labels[Bytecodes::_aload_0_fast_agetfield_1] = &&bc_aload_0_fast_agetfield_1;
+    labels[Bytecodes::_aload_0_fast_agetfield_4] = &&bc_aload_0_fast_agetfield_4;
+    labels[Bytecodes::_aload_0_fast_agetfield_8] = &&bc_aload_0_fast_agetfield_8;
+    labels[Bytecodes::_init_static_array] = &&bc_init_static_array;
+#elif ENABLE_ARM11_JAZELLE_DLOAD_BUG_WORKAROUND
+    labels[Bytecodes::_lload_safe] = &&bc_lload_safe;
+    labels[Bytecodes::_lstore_safe] = &&bc_lstore_safe;
+    labels[Bytecodes::_dload_safe] = &&bc_dload_safe;
+    labels[Bytecodes::_dstore_safe] = &&bc_dstore_safe;
+#endif
+    labels[Bytecodes::_pop_and_npe_if_null] = &&bc_pop_and_npe_if_null;
+    labels[Bytecodes::_fast_init_1_putstatic] = &&bc_fast_init_1_putstatic;
+    labels[Bytecodes::_fast_init_2_putstatic] = &&bc_fast_init_2_putstatic;
+    labels[Bytecodes::_fast_init_a_putstatic] = &&bc_fast_init_a_putstatic;
+    labels[Bytecodes::_fast_init_1_getstatic] = &&bc_fast_init_1_getstatic;
+    labels[Bytecodes::_fast_init_2_getstatic] = &&bc_fast_init_2_getstatic;
+    labels[Bytecodes::_fast_init_invokestatic] = &&bc_fast_init_invokestatic;
+    labels[Bytecodes::_fast_init_new] = &&bc_fast_init_new;
+  }
+  NEXT_BC;
+  bc_nop: bc_impl_nop(); NEXT_BC;
+  bc_aconst_null: bc_impl_aconst_null(); NEXT_BC;
+  bc_iconst_m1: bc_impl_iconst_m1(); NEXT_BC;
+  bc_iconst_0: bc_impl_iconst_0(); NEXT_BC;
+  bc_iconst_1: bc_impl_iconst_1(); NEXT_BC;
+  bc_iconst_2: bc_impl_iconst_2(); NEXT_BC;
+  bc_iconst_3: bc_impl_iconst_3(); NEXT_BC;
+  bc_iconst_4: bc_impl_iconst_4(); NEXT_BC;
+  bc_iconst_5: bc_impl_iconst_5(); NEXT_BC;
+  bc_lconst_0: bc_impl_lconst_0(); NEXT_BC;
+  bc_lconst_1: bc_impl_lconst_1(); NEXT_BC;
+  bc_fconst_0: bc_impl_fconst_0(); NEXT_BC;
+  bc_fconst_1: bc_impl_fconst_1(); NEXT_BC;
+  bc_fconst_2: bc_impl_fconst_2(); NEXT_BC;
+  bc_dconst_0: bc_impl_dconst_0(); NEXT_BC;
+  bc_dconst_1: bc_impl_dconst_1(); NEXT_BC;
+  bc_bipush: bc_impl_bipush(); NEXT_BC;
+  bc_sipush: bc_impl_sipush(); NEXT_BC;
+  bc_ldc: bc_impl_ldc(); NEXT_BC;
+  bc_ldc_w: bc_impl_ldc_w(); NEXT_BC;
+  bc_ldc2_w: bc_impl_ldc2_w(); NEXT_BC;
+  bc_iload: bc_impl_iload(); NEXT_BC;
+  bc_lload: bc_impl_lload(); NEXT_BC;
+  bc_fload: bc_impl_fload(); NEXT_BC;
+  bc_dload: bc_impl_dload(); NEXT_BC;
+  bc_aload: bc_impl_aload(); NEXT_BC;
+  bc_iload_0: bc_impl_iload_0(); NEXT_BC;
+  bc_iload_1: bc_impl_iload_1(); NEXT_BC;
+  bc_iload_2: bc_impl_iload_2(); NEXT_BC;
+  bc_iload_3: bc_impl_iload_3(); NEXT_BC;
+  bc_lload_0: bc_impl_lload_0(); NEXT_BC;
+  bc_lload_1: bc_impl_lload_1(); NEXT_BC;
+  bc_lload_2: bc_impl_lload_2(); NEXT_BC;
+  bc_lload_3: bc_impl_lload_3(); NEXT_BC;
+  bc_fload_0: bc_impl_fload_0(); NEXT_BC;
+  bc_fload_1: bc_impl_fload_1(); NEXT_BC;
+  bc_fload_2: bc_impl_fload_2(); NEXT_BC;
+  bc_fload_3: bc_impl_fload_3(); NEXT_BC;
+  bc_dload_0: bc_impl_dload_0(); NEXT_BC;
+  bc_dload_1: bc_impl_dload_1(); NEXT_BC;
+  bc_dload_2: bc_impl_dload_2(); NEXT_BC;
+  bc_dload_3: bc_impl_dload_3(); NEXT_BC;
+  bc_aload_0: bc_impl_aload_0(); NEXT_BC;
+  bc_aload_1: bc_impl_aload_1(); NEXT_BC;
+  bc_aload_2: bc_impl_aload_2(); NEXT_BC;
+  bc_aload_3: bc_impl_aload_3(); NEXT_BC;
+  bc_iaload: bc_impl_iaload(); NEXT_BC;
+  bc_laload: bc_impl_laload(); NEXT_BC;
+  bc_faload: bc_impl_faload(); NEXT_BC;
+  bc_daload: bc_impl_daload(); NEXT_BC;
+  bc_aaload: bc_impl_aaload(); NEXT_BC;
+  bc_baload: bc_impl_baload(); NEXT_BC;
+  bc_caload: bc_impl_caload(); NEXT_BC;
+  bc_saload: bc_impl_saload(); NEXT_BC;
+  bc_istore: bc_impl_istore(); NEXT_BC;
+  bc_lstore: bc_impl_lstore(); NEXT_BC;
+  bc_fstore: bc_impl_fstore(); NEXT_BC;
+  bc_dstore: bc_impl_dstore(); NEXT_BC;
+  bc_astore: bc_impl_astore(); NEXT_BC;
+  bc_istore_0: bc_impl_istore_0(); NEXT_BC;
+  bc_istore_1: bc_impl_istore_1(); NEXT_BC;
+  bc_istore_2: bc_impl_istore_2(); NEXT_BC;
+  bc_istore_3: bc_impl_istore_3(); NEXT_BC;
+  bc_lstore_0: bc_impl_lstore_0(); NEXT_BC;
+  bc_lstore_1: bc_impl_lstore_1(); NEXT_BC;
+  bc_lstore_2: bc_impl_lstore_2(); NEXT_BC;
+  bc_lstore_3: bc_impl_lstore_3(); NEXT_BC;
+  bc_fstore_0: bc_impl_fstore_0(); NEXT_BC;
+  bc_fstore_1: bc_impl_fstore_1(); NEXT_BC;
+  bc_fstore_2: bc_impl_fstore_2(); NEXT_BC;
+  bc_fstore_3: bc_impl_fstore_3(); NEXT_BC;
+  bc_dstore_0: bc_impl_dstore_0(); NEXT_BC;
+  bc_dstore_1: bc_impl_dstore_1(); NEXT_BC;
+  bc_dstore_2: bc_impl_dstore_2(); NEXT_BC;
+  bc_dstore_3: bc_impl_dstore_3(); NEXT_BC;
+  bc_astore_0: bc_impl_astore_0(); NEXT_BC;
+  bc_astore_1: bc_impl_astore_1(); NEXT_BC;
+  bc_astore_2: bc_impl_astore_2(); NEXT_BC;
+  bc_astore_3: bc_impl_astore_3(); NEXT_BC;
+  bc_iastore: bc_impl_iastore(); NEXT_BC;
+  bc_lastore: bc_impl_lastore(); NEXT_BC;
+  bc_fastore: bc_impl_fastore(); NEXT_BC;
+  bc_dastore: bc_impl_dastore(); NEXT_BC;
+  bc_aastore: bc_impl_aastore(); NEXT_BC;
+  bc_bastore: bc_impl_bastore(); NEXT_BC;
+  bc_castore: bc_impl_castore(); NEXT_BC;
+  bc_sastore: bc_impl_sastore(); NEXT_BC;
+  bc_pop: bc_impl_pop(); NEXT_BC;
+  bc_pop2: bc_impl_pop2(); NEXT_BC;
+  bc_dup: bc_impl_dup(); NEXT_BC;
+  bc_dup_x1: bc_impl_dup_x1(); NEXT_BC;
+  bc_dup_x2: bc_impl_dup_x2(); NEXT_BC;
+  bc_dup2: bc_impl_dup2(); NEXT_BC;
+  bc_dup2_x1: bc_impl_dup2_x1(); NEXT_BC;
+  bc_dup2_x2: bc_impl_dup2_x2(); NEXT_BC;
+  bc_swap: bc_impl_swap(); NEXT_BC;
+  bc_iadd: bc_impl_iadd(); NEXT_BC;
+  bc_ladd: bc_impl_ladd(); NEXT_BC;
+  bc_fadd: bc_impl_fadd(); NEXT_BC;
+  bc_dadd: bc_impl_dadd(); NEXT_BC;
+  bc_isub: bc_impl_isub(); NEXT_BC;
+  bc_lsub: bc_impl_lsub(); NEXT_BC;
+  bc_fsub: bc_impl_fsub(); NEXT_BC;
+  bc_dsub: bc_impl_dsub(); NEXT_BC;
+  bc_imul: bc_impl_imul(); NEXT_BC;
+  bc_lmul: bc_impl_lmul(); NEXT_BC;
+  bc_fmul: bc_impl_fmul(); NEXT_BC;
+  bc_dmul: bc_impl_dmul(); NEXT_BC;
+  bc_idiv: bc_impl_idiv(); NEXT_BC;
+  bc_ldiv: bc_impl_ldiv(); NEXT_BC;
+  bc_fdiv: bc_impl_fdiv(); NEXT_BC;
+  bc_ddiv: bc_impl_ddiv(); NEXT_BC;
+  bc_irem: bc_impl_irem(); NEXT_BC;
+  bc_lrem: bc_impl_lrem(); NEXT_BC;
+  bc_frem: bc_impl_frem(); NEXT_BC;
+  bc_drem: bc_impl_drem(); NEXT_BC;
+  bc_ineg: bc_impl_ineg(); NEXT_BC;
+  bc_lneg: bc_impl_lneg(); NEXT_BC;
+  bc_fneg: bc_impl_fneg(); NEXT_BC;
+  bc_dneg: bc_impl_dneg(); NEXT_BC;
+  bc_ishl: bc_impl_ishl(); NEXT_BC;
+  bc_lshl: bc_impl_lshl(); NEXT_BC;
+  bc_ishr: bc_impl_ishr(); NEXT_BC;
+  bc_lshr: bc_impl_lshr(); NEXT_BC;
+  bc_iushr: bc_impl_iushr(); NEXT_BC;
+  bc_lushr: bc_impl_lushr(); NEXT_BC;
+  bc_iand: bc_impl_iand(); NEXT_BC;
+  bc_land: bc_impl_land(); NEXT_BC;
+  bc_ior: bc_impl_ior(); NEXT_BC;
+  bc_lor: bc_impl_lor(); NEXT_BC;
+  bc_ixor: bc_impl_ixor(); NEXT_BC;
+  bc_lxor: bc_impl_lxor(); NEXT_BC;
+  bc_iinc: bc_impl_iinc(); NEXT_BC;
+  bc_i2l: bc_impl_i2l(); NEXT_BC;
+  bc_i2f: bc_impl_i2f(); NEXT_BC;
+  bc_i2d: bc_impl_i2d(); NEXT_BC;
+  bc_l2i: bc_impl_l2i(); NEXT_BC;
+  bc_l2f: bc_impl_l2f(); NEXT_BC;
+  bc_l2d: bc_impl_l2d(); NEXT_BC;
+  bc_f2i: bc_impl_f2i(); NEXT_BC;
+  bc_f2l: bc_impl_f2l(); NEXT_BC;
+  bc_f2d: bc_impl_f2d(); NEXT_BC;
+  bc_d2i: bc_impl_d2i(); NEXT_BC;
+  bc_d2l: bc_impl_d2l(); NEXT_BC;
+  bc_d2f: bc_impl_d2f(); NEXT_BC;
+  bc_i2b: bc_impl_i2b(); NEXT_BC;
+  bc_i2c: bc_impl_i2c(); NEXT_BC;
+  bc_i2s: bc_impl_i2s(); NEXT_BC;
+  bc_lcmp: bc_impl_lcmp(); NEXT_BC;
+  bc_fcmpl: bc_impl_fcmpl(); NEXT_BC;
+  bc_fcmpg: bc_impl_fcmpg(); NEXT_BC;
+  bc_dcmpl: bc_impl_dcmpl(); NEXT_BC;
+  bc_dcmpg: bc_impl_dcmpg(); NEXT_BC;
+  bc_ifeq: bc_impl_ifeq(); NEXT_BC;
+  bc_ifne: bc_impl_ifne(); NEXT_BC;
+  bc_iflt: bc_impl_iflt(); NEXT_BC;
+  bc_ifge: bc_impl_ifge(); NEXT_BC;
+  bc_ifgt: bc_impl_ifgt(); NEXT_BC;
+  bc_ifle: bc_impl_ifle(); NEXT_BC;
+  bc_if_icmpeq: bc_impl_if_icmpeq(); NEXT_BC;
+  bc_if_icmpne: bc_impl_if_icmpne(); NEXT_BC;
+  bc_if_icmplt: bc_impl_if_icmplt(); NEXT_BC;
+  bc_if_icmpge: bc_impl_if_icmpge(); NEXT_BC;
+  bc_if_icmpgt: bc_impl_if_icmpgt(); NEXT_BC;
+  bc_if_icmple: bc_impl_if_icmple(); NEXT_BC;
+  bc_if_acmpeq: bc_impl_if_acmpeq(); NEXT_BC;
+  bc_if_acmpne: bc_impl_if_acmpne(); NEXT_BC;
+  bc_goto: bc_impl_goto(); NEXT_BC;
+  bc_tableswitch: bc_impl_tableswitch(); NEXT_BC;
+  bc_lookupswitch: bc_impl_lookupswitch(); NEXT_BC;
+  bc_ireturn: bc_impl_ireturn(); NEXT_BC;
+  bc_lreturn: bc_impl_lreturn(); NEXT_BC;
+  bc_freturn: bc_impl_freturn(); NEXT_BC;
+  bc_dreturn: bc_impl_dreturn(); NEXT_BC;
+  bc_areturn: bc_impl_areturn(); NEXT_BC;
+  bc_return: bc_impl_return(); NEXT_BC;
+  bc_getstatic: bc_impl_getstatic(); NEXT_BC;
+  bc_putstatic: bc_impl_putstatic(); NEXT_BC;
+  bc_getfield: bc_impl_getfield(); NEXT_BC;
+  bc_putfield: bc_impl_putfield(); NEXT_BC;
+  bc_invokevirtual: bc_impl_invokevirtual(); NEXT_BC;
+  bc_invokespecial: bc_impl_invokespecial(); NEXT_BC;
+  bc_invokestatic: bc_impl_invokestatic(); NEXT_BC;
+  bc_invokeinterface: bc_impl_invokeinterface(); NEXT_BC;
+  bc_new: bc_impl_new(); NEXT_BC;
+  bc_newarray: bc_impl_newarray(); NEXT_BC;
+  bc_arraylength: bc_impl_arraylength(); NEXT_BC;
+  bc_athrow: bc_impl_athrow(); NEXT_BC;
+  bc_checkcast: bc_impl_checkcast(); NEXT_BC;
+  bc_instanceof: bc_impl_instanceof(); NEXT_BC;
+  bc_monitorenter: bc_impl_monitorenter(); NEXT_BC;
+  bc_monitorexit: bc_impl_monitorexit(); NEXT_BC;
+  bc_wide: bc_impl_wide(); NEXT_BC;
+  bc_anewarray: bc_impl_anewarray(); NEXT_BC;
+  bc_multianewarray: bc_impl_multianewarray(); NEXT_BC;
+  bc_ifnull: bc_impl_ifnull(); NEXT_BC;
+  bc_ifnonnull: bc_impl_ifnonnull(); NEXT_BC;
+  bc_goto_w: bc_impl_goto_w(); NEXT_BC;
+  bc_breakpoint: bc_impl_breakpoint(); NEXT_BC;
+  bc_fast_1_ldc: bc_impl_fast_1_ldc(); NEXT_BC;
+  bc_fast_1_ldc_w: bc_impl_fast_1_ldc_w(); NEXT_BC;
+  bc_fast_2_ldc_w: bc_impl_fast_2_ldc_w(); NEXT_BC;
+  bc_fast_1_putstatic: bc_impl_fast_1_putstatic(); NEXT_BC;
+  bc_fast_2_putstatic: bc_impl_fast_2_putstatic(); NEXT_BC;
+  bc_fast_a_putstatic: bc_impl_fast_a_putstatic(); NEXT_BC;
+  bc_fast_1_getstatic: bc_impl_fast_1_getstatic(); NEXT_BC;
+  bc_fast_2_getstatic: bc_impl_fast_2_getstatic(); NEXT_BC;
+  bc_fast_bputfield: bc_impl_fast_bputfield(); NEXT_BC;
+  bc_fast_sputfield: bc_impl_fast_sputfield(); NEXT_BC;
+  bc_fast_iputfield: bc_impl_fast_iputfield(); NEXT_BC;
+  bc_fast_lputfield: bc_impl_fast_lputfield(); NEXT_BC;
+  bc_fast_fputfield: bc_impl_fast_fputfield(); NEXT_BC;
+  bc_fast_dputfield: bc_impl_fast_dputfield(); NEXT_BC;
+  bc_fast_aputfield: bc_impl_fast_aputfield(); NEXT_BC;
+  bc_fast_bgetfield: bc_impl_fast_bgetfield(); NEXT_BC;
+  bc_fast_sgetfield: bc_impl_fast_sgetfield(); NEXT_BC;
+  bc_fast_igetfield: bc_impl_fast_igetfield(); NEXT_BC;
+  bc_fast_lgetfield: bc_impl_fast_lgetfield(); NEXT_BC;
+  bc_fast_fgetfield: bc_impl_fast_fgetfield(); NEXT_BC;
+  bc_fast_dgetfield: bc_impl_fast_dgetfield(); NEXT_BC;
+  bc_fast_agetfield: bc_impl_fast_agetfield(); NEXT_BC;
+  bc_fast_cgetfield: bc_impl_fast_cgetfield(); NEXT_BC;
+  bc_fast_invokevirtual: bc_impl_fast_invokevirtual(); NEXT_BC;
+  bc_fast_invokestatic: bc_impl_fast_invokestatic(); NEXT_BC;
+  bc_fast_invokeinterface: bc_impl_fast_invokeinterface(); NEXT_BC;
+  bc_fast_invokenative: bc_impl_fast_invokenative(); NEXT_BC;
+  bc_fast_new: bc_impl_fast_new(); NEXT_BC;
+  bc_fast_anewarray: bc_impl_fast_anewarray(); NEXT_BC;
+  bc_fast_checkcast: bc_impl_fast_checkcast(); NEXT_BC;
+  bc_fast_instanceof: bc_impl_fast_instanceof(); NEXT_BC;
+  bc_fast_invokevirtual_final: bc_impl_fast_invokevirtual_final(); NEXT_BC;
+  bc_fast_invokespecial: bc_impl_fast_invokespecial(); NEXT_BC;
+  bc_fast_igetfield_1: bc_impl_fast_igetfield_1(); NEXT_BC;
+  bc_fast_agetfield_1: bc_impl_fast_agetfield_1(); NEXT_BC;
+#if !ENABLE_CPU_VARIANT
+  bc_aload_0_fast_igetfield_1: bc_impl_aload_0_fast_igetfield_1(); NEXT_BC;
+  bc_aload_0_fast_igetfield_4: bc_impl_aload_0_fast_igetfield_4(); NEXT_BC;
+  bc_aload_0_fast_igetfield_8: bc_impl_aload_0_fast_igetfield_8(); NEXT_BC;
+  bc_aload_0_fast_agetfield_1: bc_impl_aload_0_fast_agetfield_1(); NEXT_BC;
+  bc_aload_0_fast_agetfield_4: bc_impl_aload_0_fast_agetfield_4(); NEXT_BC;
+  bc_aload_0_fast_agetfield_8: bc_impl_aload_0_fast_agetfield_8(); NEXT_BC;
+  bc_init_static_array: bc_impl_init_static_array(); NEXT_BC;
+#elif ENABLE_ARM11_JAZELLE_DLOAD_BUG_WORKAROUND
+  bc_lload_safe: bc_impl_lload_safe(); NEXT_BC;
+  bc_lstore_safe: bc_impl_lstore_safe(); NEXT_BC;
+  bc_dload_safe: bc_impl_dload_safe(); NEXT_BC;
+  bc_dstore_safe: bc_impl_dstore_safe(); NEXT_BC;
+#endif
+  bc_pop_and_npe_if_null: bc_impl_pop_and_npe_if_null(); NEXT_BC;
+  bc_fast_init_1_putstatic: bc_impl_fast_init_1_putstatic(); NEXT_BC;
+  bc_fast_init_2_putstatic: bc_impl_fast_init_2_putstatic(); NEXT_BC;
+  bc_fast_init_a_putstatic: bc_impl_fast_init_a_putstatic(); NEXT_BC;
+  bc_fast_init_1_getstatic: bc_impl_fast_init_1_getstatic(); NEXT_BC;
+  bc_fast_init_2_getstatic: bc_impl_fast_init_2_getstatic(); NEXT_BC;
+  bc_fast_init_invokestatic: bc_impl_fast_init_invokestatic(); NEXT_BC;
+  bc_fast_init_new: bc_impl_fast_init_new(); NEXT_BC;
+  bc_undef: undef_bc(); NEXT_BC;
+#undef NEXT_BC
+}
+#endif
+
 // interpreter
 static void Interpret() {
   // Start a new thread or continue in another existing thread
@@ -4631,6 +5173,9 @@ static void Interpret() {
       interpreter_dispatch_table[*g_jpc]();
     }
   } else {
+#if J2V_THREADED
+    Interpret_threaded();
+#endif
     for (;;) {
 #ifdef BYTECODE_COUNT
       interpreter_count_table[*g_jpc]++;

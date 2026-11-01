@@ -14,8 +14,8 @@
 #define J2V_VERSION "dev"
 #endif
 
-/* Java heap (32 MB) + timidity patches + VM tables. vitaGL uses its own memblocks. */
-int _newlib_heap_size_user = 128 * 1024 * 1024;
+/* PCSL pool with the Java heap (64 MB) + timidity patches (up to ~35 MB) + VM tables. vitaGL uses its own memblocks. */
+int _newlib_heap_size_user = 160 * 1024 * 1024;
 
 extern void JavaTask(void);
 void javacall_log_open(void);
@@ -121,10 +121,12 @@ int main(int argc, char *argv[]) {
     cfg_select_game(NULL, NULL);
     video_start();
 
-    th = sceKernelCreateThread("j2v_start", starter, 0x10000100, 0x4000, 0, 0, NULL);
+    th = sceKernelCreateThread("j2v_start", starter, 0x10000100, 0x4000, J2V_HELPER_CPUS, 0, NULL);
     if (th >= 0)
         sceKernelStartThread(th, 0, NULL);
 
+    /* the interpreter gets core 0 to itself, render/input/timer use the other two */
+    sceKernelChangeThreadCpuAffinityMask(sceKernelGetThreadId(), SCE_KERNEL_CPU_MASK_USER_0);
     JavaTask();
 
     javacall_printf("JavaTask returned\n");
