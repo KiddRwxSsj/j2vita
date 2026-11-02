@@ -712,7 +712,8 @@ storage_rename_file(char** ppszError, const pcsl_string* oldFilename_str,
         return;
     }
 
-    *ppszError = NULL;
+    /* the copy above is the rename, so the old name has to go */
+    storage_delete_file(ppszError, oldFilename_str);
 }
 
 static char*

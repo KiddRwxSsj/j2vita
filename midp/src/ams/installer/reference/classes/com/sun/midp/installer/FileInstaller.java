@@ -97,8 +97,11 @@ System.out.println("FileInstaller.downloadJAR:"+jarFilename);
         // Open source (jar) file
         jarInputStream = new RandomAccessStream();
         jarInputStream.connect(jarFilename, Connector.READ);
-        jarSize = jarInputStream.getSizeOf();
-        System.out.println("JAR file size:" + jarSize);
+        try {
+            jarSize = jarInputStream.getSizeOf();
+        } finally {
+            jarInputStream.disconnect();
+        }
 /*
         // Open source (jar) file
         jarInputStream = new RandomAccessStream();

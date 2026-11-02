@@ -1392,7 +1392,9 @@ public abstract class Installer {
     protected void checkForDifferentDomains(String url) {
         String previousUrl = state.previousInstallInfo.getDownloadUrl();
         // perform a domain check not a straight compare
-        if (info.authPath == null && previousUrl != null) {
+        /* JARs from the games folder are plain paths, often with spaces */
+        if (info.authPath == null && previousUrl != null && previousUrl.startsWith("http")
+                && url.startsWith("http")) {
             HttpUrl old = new HttpUrl(previousUrl);
             HttpUrl current = new HttpUrl(url);
 
