@@ -12,10 +12,13 @@ God of War: Betrayal | Playable |
 Block Breaker | Playable |
 Diamond Rush | Playable |
 G. I. JOE | Playable |
-Spider-Man: Ultimate Power | Playable |
+Spider-Man: Ultimate Power | Playable | Faster since 0.9.1
 Little NinjaKing | Playable |
-Resident Evil Degeneration FP | Playable |
-Heroic Epic 2 | Broken | Crash after launch
-Heroic Epic | Issues | Game starts normally, freezes after selecting the sprite.
+Resident Evil Degeneration FP | Playable | M3G 3D since 0.9.1
+Heroic Epic 2 | Playable | Fixed in 0.9.1
+Heroic Epic | Playable | Fixed in 0.9.1
 TimeRider Ⅱ | Issues | BGM playback differs from Android J2ME emulators, audio mismatch
-Rollercoaster Revolution | Broken | Stuck infinitely on loading progress bar
+Rollercoaster Revolution | Playable | Fixed in 0.9.1
+The Amazing Spider-Man 2 | Playable | Slows down with many enemies on screen
+The Sims 3 | Playable | Type names with the keypad's Text key
+Resident Evil: The Missions | Playable | MascotCapsule 3D since 0.9.1
