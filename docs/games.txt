@@ -5,17 +5,45 @@
 # Notes are optional. Lines starting with # are ignored.
 # Save the file and the website updates on its own after a minute or two.
 
+
+
+Age of Heroes 3 | Playable |
+Asphalt 3 | Playable |
+Asphalt 4: Elite Racing | Playable |
+Assassin's Creed 1 | Playable |
+Assassin's Creed 2 | Broken | Black screen on boot
+Assassin's Creed 3 | Playable |
+Assassin's Creed Brotherhood | Playable |
+Assassin's Creed Revelations | Playable |
+Batman: Guardian of Gotham | Playable |
+Ben 10 | Playable |
 Block Breaker | Playable |
+Crazy Taxi | Broken | Crashes when entering a match
+Crash Titans | Playable |
+CSI: Miami | Playable |
+Chuck Norris: Bring on the Pain | Broken | Game speed issues
 Diamond Rush | Playable |
+Doodle Jump | Playable |
+Dungeon Hunter: Curse of Heaven | Playable |
+EcoMate | Issues | 3D renders black (scene lights not applied), runs too fast, progress may not save
+Ferrari GT 2: Revolution | Playable |
 G. I. JOE | Playable |
+Gangstar City | Playable |
 God of War: Betrayal | Playable |
 Heroic Epic | Playable | Fixed in 0.9.1
 Heroic Epic 2 | Playable | Fixed in 0.9.1
+Iron Man 3 | Playable |
 Little NinjaKing | Playable |
+Metal Gear Acid 2 | Playable |
+Modern Combat 4: Zero Hour | Issues | Low FPS
+Prince of Persia 3 | Playable |
+Real Football 2012 | Playable |
 Resident Evil Degeneration | Playable | M3G 3D since 0.9.1
 Resident Evil Degeneration FP | Playable |
 Resident Evil: The Missions | Playable | MascotCapsule 3D since 0.9.1
+Rival Wheels | Playable |
 Rollercoaster Revolution | Playable | Fixed in 0.9.1
+Sonic Runners Adventure | Playable |
 Spider-Man: Toxic City | Playable |
 Spider-Man: Ultimate Power | Playable | Faster since 0.9.1
 TEKKEN MOBILE | Playable | Fights load since 0.9.0
@@ -23,4 +51,5 @@ The Amazing Spider-Man | Playable |
 The Amazing Spider-Man 2 | Playable | Slows down with many enemies on screen
 The Sims 3 | Playable | Type names with the keypad's Text key
 TimeRider Ⅱ | Issues | BGM playback differs from Android J2ME emulators, audio mismatch
-EcoMate | Issues | 3D renders black (scene lights not applied), runs too fast, progress may not save
+Tomb Raider: Anniversary | Playable |
+Transformers | Playable |
