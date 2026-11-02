@@ -38,8 +38,10 @@ with [ShaRKBR33D](https://github.com/Rinnegatamante/ShaRKBR33D/releases) if you 
 Then add some games:
 
 1. Copy your `.jar` files to `ux0:data/j2vita/games/`.
-2. Open J2Vita and press **Square** (or Triangle > Install games).
-3. Pick a game. It shows up in the list right away.
+2. Open J2Vita. New games are installed on their own and show up in the list.
+3. Pick a game and press Cross.
+
+To update a game, overwrite its `.jar`. Deleting a game from the list also deletes its `.jar`.
 
 ```
 ux0:data/j2vita/
@@ -57,8 +59,7 @@ Games keep their saves in `ux0:data/j2vita/appdb/`, so updating J2Vita doesn't t
 | Vita | Does |
 |---|---|
 | Cross | Play |
-| Triangle / L / Start | Options: install, delete, settings, quit |
-| Square | Install games |
+| Triangle / L / Start | Options: delete, settings, quit |
 | SELECT | Settings |
 
 **In game** (defaults; every game can have its own mapping)
@@ -92,6 +93,15 @@ the keypad to the other side and Circle hides it. You can also just tap the keys
   ~97% the game is running at the speed it was made for. `CPU bound` means the Vita can't keep up.
 * **Resolution** is guessed from the game's name and manifest the first time. If a game looks
   cropped or tiny, change it and restart the game.
+* **Text entry**: open the on-screen keypad and pick **Text** to type with the Vita keyboard.
+
+## What works
+
+* MIDP 2.0 games, including Nokia UI extras.
+* 3D games made with **MascotCapsule Micro3D v3** or **M3G (JSR-184)**. Both are software
+  renderers written for J2Vita, so 3D games run but are not as fast as 2D ones.
+* MIDI, WAV, tones and AMR sound.
+* Not there yet: networking and Bluetooth (games that ask for them keep running without).
 
 ## AI Assistance
 
@@ -114,6 +124,8 @@ implementation and debugging process remaining under human supervision.
 * **SDL2** and **SDL2_mixer** by the SDL team, with its TiMidity code for MIDI.
 * **FreePats** by the Free Software Foundation, the instrument set used for MIDI music.
 * **FreeType**, **libpng** and **zlib**.
+* **FFmpeg** for the AMR audio decoders.
+* **J2ME-Loader**, whose source was a handy reference for the MascotCapsule file formats.
 * **VitaSDK** and the Vita homebrew scene.
 
 Java and the Java coffee cup logo are trademarks of Oracle and/or its affiliates. PlayStation and
@@ -126,7 +138,8 @@ respective owners.
 J2Vita is free software under the **GNU General Public License, version 2**, the same license as
 phoneME Feature and PSPKVM. See [LICENSE](LICENSE). Third-party parts keep their own licenses:
 vitaGL (LGPL v3), SDL2 and SDL2_mixer (zlib), FreePats (GPL v2 or later, with an exception for
-music made with it), FreeType (FTL), libpng and zlib.
+music made with it), FFmpeg's AMR decoders (LGPL v2.1 or later), FreeType (FTL), libpng and
+zlib.
 
 ## Building from source
 
@@ -141,4 +154,4 @@ JDK_DIR=/path/to/jdk8 ./build.sh
 
 `HOST32_BIN` can point at gcc/g++ wrappers if your `-m32` setup lives somewhere else. The VPK ends
 up in `vita/j2vita.vpk`. The build fetches a pinned vitaGL (without the boot splash) and the
-FreePats instruments the first time.
+FreePats instruments the first time, and builds a tiny FFmpeg with only the AMR decoders.

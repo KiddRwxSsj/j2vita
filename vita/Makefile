@@ -1,11 +1,13 @@
 TITLE_ID := JTVA00001
 TITLE := J2Vita
-VERSION ?= 0.9.0
-APP_VER ?= 00.90
+VERSION ?= 0.9.1
+APP_VER ?= 00.91
 # Timidity patch set, see ../scripts/fetch-freepats.sh
 FREEPATS ?= ../build/freepats
 # splash-free vitaGL, see ../scripts/build-vitagl.sh
 VITAGL ?= ../build/vitagl
+# FFmpeg with only the AMR decoders, see ../scripts/build-ffmpeg-amr.sh
+FFAMR ?= ../build/ffmpeg-amr
 
 VITASDK ?= /usr/local/vitasdk
 PREFIX := $(VITASDK)/bin/arm-vita-eabi
@@ -35,11 +37,15 @@ LIBS := -Wl,--start-group \
 	-lSceCtrl_stub -lSceTouch_stub -lScePower_stub -lSceAudio_stub -lSceAudioIn_stub \
 	-lSceAppMgr_stub -lSceAppUtil_stub -lSceCommonDialog_stub -lSceSysmodule_stub \
 	-lSceIme_stub -lSceHid_stub -lSceMotion_stub -lSceIofilemgr_stub \
+	$(FFAMR)/lib/libavcodec.a $(FFAMR)/lib/libavutil.a \
 	-lpthread -lstdc++ -lm -lc
 
-OBJS := main.o config.o video.o input.o menu.o theme.o compat.o
+OBJS := main.o config.o video.o input.o menu.o theme.o compat.o ime.o amr.o
 
 all: j2vita.vpk
+
+amr.o: amr.c
+	$(CC) $(CFLAGS) -I$(FFAMR)/include -c $< -o $@
 
 %.o: %.c j2vita.h
 	$(CC) $(CFLAGS) -c $< -o $@
