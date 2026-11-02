@@ -555,6 +555,12 @@ class AppManagerUI extends Form
         display.setCurrent(vitaHome);
     }
 
+    /* screens opened from the game list go back to it, never to the old PSPKVM form */
+    Displayable vitaHome() {
+        if (vitaHome == null) vitaHome = new LauncherScreen(this);
+        return vitaHome;
+    }
+
     void vitaSelectSuite(int suiteId) {
         showVitaHome();
         if (vitaHome != null) vitaHome.selectSuite(suiteId);
@@ -563,6 +569,11 @@ class AppManagerUI extends Form
     void vitaLaunch(AMSMidletCustomItem item) {
         if (item == null || item.msi == null) return;
         setLastSelectedMsi(item.msi);
+        if (!item.isRunning() && com.sun.midp.installer.GameSync.missing(item.msi.suiteId)) {
+            /* JAR deleted behind our back, drop the entry instead of failing to load it */
+            vitaSync();
+            return;
+        }
         if (item.isRunning()) {
             manager.moveToForeground(item.msi);
         } else if (item.msi.enabled) {
@@ -584,36 +595,49 @@ class AppManagerUI extends Form
         showVitaHome();
     }
 
-    private boolean syncing;
+    private volatile boolean syncing;
 
-    /** Picks up JARs added to or removed from the games folder. */
+    boolean vitaSyncing() {
+        return syncing;
+    }
+
+    /** Picks up JARs added to or removed from the games folder, in short passes so a big import shows up as it goes. */
     void vitaSync() {
         synchronized (this) {
             if (syncing) return;
             syncing = true;
         }
-        new Thread(new Runnable() {
+        if (vitaHome != null) vitaHome.repaint();
+        Thread t = new Thread(new Runnable() {
             public void run() {
                 try {
-                    final boolean added = com.sun.midp.installer.GameSync.sync();
-                    display.callSerially(new Runnable() {
-                        public void run() {
-                            int[] gone = com.sun.midp.installer.GameSync.takeTouched();
-                            for (int i = 0; i < gone.length; i++) {
-                                AMSMidletCustomItem mci = rootFolder.find(gone[i]);
-                                if (mci == null) continue;
-                                if (mci.marked) markedItems.removeElement(mci);
-                                mci.remove();
+                    boolean again;
+                    do {
+                        final boolean added = com.sun.midp.installer.GameSync.sync();
+                        /* a game in front gets the CPU, the launcher picks the rest up when shown again */
+                        again = com.sun.midp.installer.GameSync.more() && vitaHome != null && vitaHome.isShown();
+                        display.callSerially(new Runnable() {
+                            public void run() {
+                                int[] gone = com.sun.midp.installer.GameSync.takeTouched();
+                                for (int i = 0; i < gone.length; i++) {
+                                    AMSMidletCustomItem mci = rootFolder.find(gone[i]);
+                                    if (mci == null) continue;
+                                    if (mci.marked) markedItems.removeElement(mci);
+                                    mci.remove();
+                                }
+                                if (added) addUnattachedMidlets(rootFolder);
+                                if (vitaHome != null) vitaHome.refresh();
                             }
-                            if (added) addUnattachedMidlets(rootFolder);
-                            if (vitaHome != null) vitaHome.refresh();
-                        }
-                    });
+                        });
+                    } while (again);
                 } finally {
                     syncing = false;
+                    if (vitaHome != null) vitaHome.repaint();
                 }
             }
-        }).start();
+        });
+        t.setPriority(Thread.MIN_PRIORITY);
+        t.start();
     }
 
     void vitaExit() {
@@ -1097,11 +1121,11 @@ class AppManagerUI extends Form
 							Resource.getString(
 								ResourceConstants.AMS_MGR_REMOVE_LOCKED_SUITE,
 								val),
-							this);
+							vitaHome());
 						return; }
 					displayError.showErrorAlert(suiteInfo.displayName, t,
 						Resource.getString(ResourceConstants.ERROR),
-						null, this);
+						null, vitaHome());
 					return; }
 				
 				try {
@@ -1515,7 +1539,7 @@ class AppManagerUI extends Form
             manager.launchSuite(msi, msi.midletToRun);
         } else {
             try {
-                new MIDletSelector(msi, display, this, manager);
+                new MIDletSelector(msi, display, vitaHome(), manager);
             } catch (Throwable t) {
                 displayError.showErrorAlert(msi.displayName, t,
                                             null, null); } } }
