@@ -2,6 +2,7 @@ package com.sun.midp.installer;
 
 import javax.microedition.lcdui.Font;
 import javax.microedition.lcdui.Graphics;
+import javax.microedition.lcdui.Image;
 
 import com.pspkvm.system.J2Vita;
 
@@ -28,6 +29,8 @@ public final class J2Style {
             C_WELL_EDGE = 21, C_DANGER = 22, C_OK = 23, C_DISABLED = 24, SLOTS = 25;
     private static final int[] c = new int[SLOTS];
     private static int serial = -1;
+    private static Image bg, tileImg;
+    private static int bgSerial = -1, tileSize = -1, tileSerial = -1;
 
     public static int TEXT, DIM, SEL_TEXT, ACCENT, DANGER, LINE, OK, DISABLED, WELL, WELL_EDGE,
             SEL_EDGE, SEL_FILL;
@@ -93,13 +96,20 @@ public final class J2Style {
     /** background and title bar; the content area is TOP .. h - SOFT_H */
     public static void frame(Graphics g, int w, int h, String title) {
         if (stale()) refresh();
+        /* the gradients are drawn once per theme and size, animated screens repaint a lot */
+        if (bg == null || bg.getWidth() != w || bg.getHeight() != h || bgSerial != serial) {
+            bg = Image.createImage(w, h);
+            Graphics b = bg.getGraphics();
+            gradient(b, 0, TOP, w, h - TOP - SOFT_H, c[BG_TOP], c[BG_BOT]);
+            gradient(b, 0, 0, w, TITLE_H, c[BAR_TOP], c[BAR_BOT]);
+            b.setColor(c[BAR_LIGHT]);
+            b.drawLine(0, 0, w - 1, 0);
+            b.setColor(c[BAR_EDGE]);
+            b.drawLine(0, TOP - 1, w - 1, TOP - 1);
+            bgSerial = serial;
+        }
+        g.drawImage(bg, 0, 0, Graphics.TOP | Graphics.LEFT);
         g.setFont(FONT);
-        gradient(g, 0, TOP, w, h - TOP - SOFT_H, c[BG_TOP], c[BG_BOT]);
-        gradient(g, 0, 0, w, TITLE_H, c[BAR_TOP], c[BAR_BOT]);
-        g.setColor(c[BAR_LIGHT]);
-        g.drawLine(0, 0, w - 1, 0);
-        g.setColor(c[BAR_EDGE]);
-        g.drawLine(0, TOP - 1, w - 1, TOP - 1);
         g.setColor(c[BAR_TEXT]);
         g.drawString(fit(title, w - 24), w / 2, textY(0, TITLE_H), Graphics.HCENTER | Graphics.TOP);
     }
@@ -158,6 +168,50 @@ public final class J2Style {
         g.setColor(c[C_SEL_EDGE]);
         g.drawRoundRect(x, y, w - 1, h - 1, 10, 10);
         g.drawLine(x + 5, y + 1, x + w - 6, y + 1);
+    }
+
+    /** square icon tile; the selected one gets a thick frame in the selection colour */
+    public static void tile(Graphics g, int x, int y, int size, boolean sel) {
+        if (tileImg == null || tileSize != size || tileSerial != serial) {
+            /* drawn on a key colour that becomes transparent, so the corners show the background */
+            final int key = 0xFF00FF;
+            int iw = size + 1, ih = size + 2;
+            Image m = Image.createImage(iw, ih);
+            Graphics t = m.getGraphics();
+            t.setColor(key);
+            t.fillRect(0, 0, iw, ih);
+            t.setColor(c[SHADOW]);
+            t.fillRoundRect(1, 2, size, size, 12, 12);
+            roundRows(t, 0, 0, size, size, 6, 0, size, c[PANEL_TOP], c[PANEL_BOT]);
+            t.setColor(c[PANEL_EDGE]);
+            t.drawRoundRect(0, 0, size - 1, size - 1, 12, 12);
+            int[] px = new int[iw * ih];
+            m.getRGB(px, 0, iw, 0, 0, iw, ih);
+            /* the corner pixel is key colour as the RGB565 surface reads it back */
+            int k = px[0];
+            for (int i = 0; i < px.length; i++) px[i] = px[i] == k ? 0 : px[i] | 0xFF000000;
+            tileImg = Image.createRGBImage(px, iw, ih, true);
+            tileSize = size;
+            tileSerial = serial;
+        }
+        g.drawImage(tileImg, x, y, Graphics.TOP | Graphics.LEFT);
+        if (sel) cursor(g, x, y, size);
+    }
+
+    /** the thick frame in the selection colour around a tile */
+    public static void cursor(Graphics g, int x, int y, int size) {
+        g.setColor(SEL_FILL);
+        for (int i = 1; i <= 3; i++) g.drawRoundRect(x - i, y - i, size - 1 + i * 2, size - 1 + i * 2, 12 + i * 2, 12 + i * 2);
+    }
+
+    /** tab with rounded top corners holding one centred line, its bottom goes under the soft key bar */
+    public static void strip(Graphics g, int x, int y, int w, int h, String text) {
+        roundRows(g, x, y, w, h + 8, 8, 0, h + 8, c[PANEL_TOP], c[PANEL_BOT]);
+        g.setColor(c[PANEL_EDGE]);
+        g.drawRoundRect(x, y, w - 1, h + 8, 16, 16);
+        g.setFont(FONT);
+        g.setColor(TEXT);
+        g.drawString(fit(text, w - 20), x + w / 2, textY(y, h), Graphics.HCENTER | Graphics.TOP);
     }
 
     public static void separator(Graphics g, int x, int y, int w) {
