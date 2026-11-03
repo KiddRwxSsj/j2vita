@@ -400,6 +400,12 @@ KNIEXPORT void     _KNI_pop_handles(_KNI_HandleInfo*);
  * values.
  */
 #define JVM_SOFTFP_LINKAGE __softfp
+#elif defined(__GNUC__) && defined(__ARM_PCS_VFP)
+/*
+ * GCC with the hard-float ABI (PS Vita): same reason as __softfp above,
+ * the generated interpreter passes floats in integer registers.
+ */
+#define JVM_SOFTFP_LINKAGE __attribute__((pcs("aapcs")))
 #else
 /*
  * Change this if your C/C++ compiler uses a special keyword to indicate

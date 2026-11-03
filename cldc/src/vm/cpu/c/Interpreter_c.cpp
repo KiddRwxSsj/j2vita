@@ -83,8 +83,8 @@ extern "C" {
   typedef jint       (*int_func_t)(Thread* THREAD, ...);
   typedef jlong      (*long_func_t)(Thread* THREAD, ...);
   // not variadic: hard-float ABI returns variadic floats in r0, natives use s0/d0
-  typedef jfloat     (*float_func_t)(Thread* THREAD, jint, jint);
-  typedef jdouble    (*double_func_t)(Thread* THREAD, jint, jint);
+  typedef JVM_SOFTFP_LINKAGE jfloat  (*float_func_t)(Thread* THREAD, jint, jint);
+  typedef JVM_SOFTFP_LINKAGE jdouble (*double_func_t)(Thread* THREAD, jint, jint);
   typedef jboolean   (*boolean_func_t)(Thread* THREAD, ...);
   typedef jchar      (*char_func_t)(Thread* THREAD, ...);
   typedef jshort     (*short_func_t)(Thread* THREAD, ...);

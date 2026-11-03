@@ -25,6 +25,8 @@ rm -f "$t"
 JC_OUT="$WS_ROOT/javacall/configuration/phoneMEFeature/vita_arm/output"
 PCSL_OUT="$WS_ROOT/pcsl/output-vita"
 JOBS="${JOBS:-$(nproc)}"
+# J2V_VM=asm (default) is phoneME's generated ARM interpreter, J2V_VM=gcc the portable C one
+CLDC_BUILD="$WS_ROOT/cldc/build/javacall_vita_${J2V_VM:-asm}"
 
 make -C "$WS_ROOT/javacall/configuration/phoneMEFeature/vita_arm" \
   JAVACALL_DIR="$WS_ROOT/javacall" JAVACALL_OUTPUT_DIR="$JC_OUT" \
@@ -34,18 +36,21 @@ make -C "$WS_ROOT/javacall/configuration/phoneMEFeature/vita_arm" \
 make -C "$WS_ROOT/pcsl" JAVACALL_OUTPUT_DIR="$JC_OUT" \
   PCSL_PLATFORM=javacall_vita_gcc PCSL_OUTPUT_DIR="$PCSL_OUT"
 
-make -C "$WS_ROOT/cldc/build/javacall_vita_gcc" JDK_DIR="$JDK_DIR" VITA_TARGET=true \
+make -C "$CLDC_BUILD" JDK_DIR="$JDK_DIR" VITA_TARGET=true \
   ENABLE_ISOLATES=true ENABLE_PCSL=true PCSL_OUTPUT_DIR="$PCSL_OUT" \
   PCSL_DIST_DIR="$PCSL_OUT/javacall_arm" JAVACALL_OUTPUT_DIR="$JC_OUT" \
   JVMWorkSpace="$WS_ROOT/cldc"
 
 # MIDP's incremental Java build keeps stale classes and never rebuilds the ROM image
 MIDP_OUT="$WS_ROOT/midp/build/javacall_vita/output"
+# natives are compiled against the chosen VM's headers
+[ "$(cat "$MIDP_OUT/.vm" 2>/dev/null)" = "$CLDC_BUILD" ] || rm -rf "$MIDP_OUT/obj" "$MIDP_OUT/lib" "$MIDP_OUT/bin"
+mkdir -p "$MIDP_OUT" && echo "$CLDC_BUILD" > "$MIDP_OUT/.vm"
 rm -rf "$MIDP_OUT/classes.zip" "$MIDP_OUT/classes" "$MIDP_OUT/tmpclasses" "$MIDP_OUT/ROMImage.cpp" "$MIDP_OUT/obj/arm/ROMImage.o"
 
 make -C "$WS_ROOT/midp/build/javacall_vita" JDK_DIR="$JDK_DIR" USE_NATIVE_AMS=false \
   JAVACALL_PLATFORM=vita_arm JAVACALL_OUTPUT_DIR="$JC_OUT" \
-  PCSL_OUTPUT_DIR="$PCSL_OUT" CLDC_DIST_DIR="$WS_ROOT/cldc/build/javacall_vita_gcc/dist" \
+  PCSL_OUTPUT_DIR="$PCSL_OUT" CLDC_DIST_DIR="$CLDC_BUILD/dist" \
   TOOLS_DIR="$WS_ROOT/tools" RESTRICTED_CRYPTO_DIR="$WS_ROOT/restricted_crypto" \
   USE_MULTIPLE_ISOLATES=true skip_ams_executables=true JPEG_DIR="$WS_ROOT/jpeg" \
   USE_JSR_120=true JSR_120_DIR="$WS_ROOT/jsr120" \
@@ -62,4 +67,6 @@ FFAMR="${FFAMR:-$WS_ROOT/build/ffmpeg-amr}"
 "$WS_ROOT/scripts/build-vitagl.sh" "$VITAGL"
 "$WS_ROOT/scripts/fetch-freepats.sh" "$FREEPATS"
 "$WS_ROOT/scripts/build-ffmpeg-amr.sh" "$FFAMR"
-make -C "$WS_ROOT/vita" -j"$JOBS" FREEPATS="$FREEPATS" VITAGL="$VITAGL" FFAMR="$FFAMR"
+# compat.o and the link depend on the VM flavour
+rm -f "$WS_ROOT"/vita/*.o "$WS_ROOT/vita/j2vita.elf"
+make -C "$WS_ROOT/vita" -j"$JOBS" J2V_VM="${J2V_VM:-asm}" FREEPATS="$FREEPATS" VITAGL="$VITAGL" FFAMR="$FFAMR"

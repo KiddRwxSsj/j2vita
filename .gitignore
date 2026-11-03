@@ -17,3 +17,9 @@ param.sfo
 /cldc/build/tmpclasses/
 /cldc/build/classes.zip
 /cldc/log.txt
+/cldc/build/javacall_vita_asm/loopgen/
+/cldc/build/javacall_vita_asm/romgen/
+/cldc/build/javacall_vita_asm/target/
+/cldc/build/javacall_vita_asm/dist/
+/cldc/build/javacall_vita_asm/generated/
+/cldc/build/javacall_vita_asm/tools/

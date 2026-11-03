@@ -1,13 +1,15 @@
 #include <stddef.h>
 #include <string.h>
 
-/* the ARM interpreter loop would provide these, the C interpreter build does not */
+/* the ARM interpreter loop provides these, the C interpreter build does not */
+#ifndef J2V_ASM_VM
 void fast_memclear(void *start, int length) {
     if (start != NULL && length > 0)
         memset(start, 0, (size_t)length);
 }
 
 int *_rom_constant_pool_fast = NULL;
+#endif
 
 /* PSPKVM's persistent VMSettings store is PSP only, everything falls back to defaults */
 int vmsettings_getint(const char *key, int default_value) {
