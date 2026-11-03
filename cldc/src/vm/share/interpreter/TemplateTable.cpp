@@ -902,6 +902,9 @@ void TemplateTable::initialize_fast(SourceMacros* assembler) {
   def_0(Bytecodes::_pop_and_npe_if_null,
         align_code_base,
         bc_pop_and_npe_if_null);
+  def_0(Bytecodes::_fast_iload_fill,
+        align_code_base,
+        bc_fast_iload_fill);
 #if !ENABLE_CPU_VARIANT  
   def_2(Bytecodes::_aload_0_fast_igetfield_4,
         align_code_base,

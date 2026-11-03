@@ -2025,6 +2025,7 @@ void Method::iterate_bytecode(int bci, BytecodeClosure* blk,
     break;
 
   case Bytecodes::_iload:
+  case Bytecodes::_fast_iload_fill:
     blk->load_local(T_INT, get_ubyte(bci+1) JVM_NO_CHECK);
     break;
 
@@ -3167,6 +3168,7 @@ bool Method::is_snippet_can_be_elminate(jint begin_bci, jint end_bci, int& local
     break;
 
   case Bytecodes::_iload:
+  case Bytecodes::_fast_iload_fill:
     local_index = get_ubyte(bci+1);
     break;
 

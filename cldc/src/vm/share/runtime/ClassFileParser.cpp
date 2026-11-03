@@ -919,6 +919,36 @@ ReturnOop ClassFileParser::new_lazy_error_method(Method* method,
   return m;
 }
 
+#if defined(__vita__) && !ENABLE_C_INTERPRETER
+// Marks  while (X-- >= 0) A[P++] = V;  with A a static int[] (see
+// bc_fast_iload_fill). Gameloft's sprite decoder spends most of a frame in it.
+static void mark_fill_loops(Method* m) {
+  jubyte* c = (jubyte*)m->code_base();
+  const int size = m->code_size();
+  for (int bci = 0; bci < size; ) {
+    if (bci + 22 <= size && c[bci] == Bytecodes::_iload) {
+      const int x = c[bci + 1], p = c[bci + 12], v = c[bci + 17];
+      if (c[bci + 2] == Bytecodes::_iinc && c[bci + 3] == x && c[bci + 4] == 0xFF &&
+          c[bci + 5] == Bytecodes::_iflt && c[bci + 6] == 0 && c[bci + 7] == 17 &&
+          c[bci + 8] == Bytecodes::_getstatic &&
+          c[bci + 11] == Bytecodes::_iload &&
+          c[bci + 13] == Bytecodes::_iinc && c[bci + 14] == p && c[bci + 15] == 1 &&
+          c[bci + 16] == Bytecodes::_iload &&
+          c[bci + 18] == Bytecodes::_iastore &&
+          c[bci + 19] == Bytecodes::_goto && c[bci + 20] == 0xFF && c[bci + 21] == 0xED &&
+          x != p && x != v && p != v) {
+        c[bci] = Bytecodes::_fast_iload_fill;
+      }
+    }
+    const int len = Bytecodes::length_for(m, bci);
+    if (len <= 0) {
+      break;
+    }
+    bci += len;
+  }
+}
+#endif
+
 // Note: the parse_method below is big and clunky because all parsing
 // of the code and exceptions attribute is inlined. This is cumbersome
 // to avoid since we inline most of the parts in the methodOop to save
@@ -1174,6 +1204,12 @@ ClassFileParser::parse_method(ClassParserState *state, ConstantPool* cp,
 
   m().set_default_entry(false);
   m().check_bytecodes(JVM_SINGLE_ARG_CHECK_0);
+#if defined(__vita__) && !ENABLE_C_INTERPRETER
+  // the verifier would reject the fast bytecode, it is off for MIDlets
+  if (code_length > 0 && !UseVerifier) {
+    mark_fill_loops(&m);
+  }
+#endif
   m().set_stackmaps(&stackmaps);
 
   if (ENABLE_BYTECODE_FLUSHING && code_length > 0) {

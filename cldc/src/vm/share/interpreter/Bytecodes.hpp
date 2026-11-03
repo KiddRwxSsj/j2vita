@@ -351,6 +351,10 @@ class Bytecodes: public AllStatic {
    _fast_init_invokestatic,
    _fast_init_new,
 
+   // iload heading the int[] fill loop that ClassFileParser rewrites, see
+   // bc_fast_iload_fill; every bytecode iterator treats it as iload
+   _fast_iload_fill,
+
     number_of_java_codes
   };
 

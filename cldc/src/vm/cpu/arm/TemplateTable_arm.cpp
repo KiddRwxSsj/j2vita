@@ -708,6 +708,88 @@ void bc_pop_and_npe_if_null::generate() {
   dispatch(tos_on_stack);
 }
 
+// The 22 bytes at bcp are the loop ClassFileParser matched:
+//    0 iload X       2 iinc X,-1    5 iflt +17     8 getstatic A
+//   11 iload P      13 iinc P,1    16 iload V     18 iastore     19 goto -19
+// i.e. while (X-- >= 0) A[P++] = V. When A is a resolved static int[] and
+// the whole run is in bounds it is filled here and execution continues at
+// bcp + 22 with the locals the loop would have left (X = -2 or X - 1,
+// P + X + 1). Anything else runs the loop as plain bytecodes (this is iload X).
+void bc_fast_iload_fill::generate() {
+  Label slow, skip, fill;
+  pop_arguments(0);
+
+  comment("n = X");
+  ldrb(tmp4, imm_index(bcp, 1));
+  ldr(tos_tag, local_addr_at(tmp4));
+  cmp(tos_tag, zero);
+  b(skip, lt);
+
+  comment("A must be a resolved getstatic");
+  ldrb(tmp0, imm_index(bcp, 8));
+  cmp(tmp0, imm(Bytecodes::_fast_1_getstatic));
+  cmp(tmp0, imm(Bytecodes::_fast_init_1_getstatic), ne);
+  b(slow, ne);
+  ldrb(tmp0, imm_index(bcp, 9));
+  ldrb(tmp1, imm_index(bcp, 10));
+  add(tmp0, cpool, imm_shift(tmp0, lsl, 10));
+  ldr(tmp1, add_index(tmp0, tmp1, lsl, 2));
+  eol_comment("field offset in the mirror");
+  mov(tmp0, imm_shift(tmp1, lsr, 16));
+  eol_comment("class id");
+  sub(tmp1, tmp1, imm_shift(tmp0, lsl, 16));
+  get_mirror_list_base(tmp2);
+  ldr(tmp2, add_index(tmp2, tmp1, lsl, 2));
+  cmp(tmp2, zero);
+  b(slow, eq);
+  get_task_class_init_marker(tmp3);
+  cmp(tmp2, reg(tmp3));
+  b(slow, eq);
+  ldr(tmp2, add_index(tmp2, tmp0));
+  cmp(tmp2, zero);
+  b(slow, eq);
+
+  comment("P .. P + n must be inside A");
+  ldrb(tmp3, imm_index(bcp, 12));
+  ldr(tmp0, local_addr_at(tmp3));
+  ldr(tmp1, imm_index(tmp2, Array::length_offset()));
+  add(tos_val, tmp0, reg(tos_tag));
+  cmp(tmp0, reg(tmp1));
+  b(slow, hs);
+  cmp(tos_val, reg(tmp1));
+  b(slow, hs);
+
+  comment("P = P + n + 1, X = -2");
+  add(tos_val, tos_val, imm(1));
+  str(tos_val, local_addr_at(tmp3));
+  mvn(tmp1, imm(1));
+  str(tmp1, local_addr_at(tmp4));
+  ldrb(tmp3, imm_index(bcp, 17));
+  ldr(tmp1, local_addr_at(tmp3));
+  add(tmp2, tmp2, imm(Array::base_offset()));
+  add(tmp2, tmp2, imm_shift(tmp0, lsl, 2));
+  add(tos_tag, tos_tag, imm(1));
+  bind(fill);
+  sub(tos_tag, tos_tag, imm(1), set_CC);
+  str(tmp1, imm_index(tmp2, BytesPerWord, post_indexed));
+  b(fill, ne);
+  prefetch(22);
+  dispatch(0);
+
+  bind(skip);
+  comment("n < 0: the loop exits at once with X = n - 1");
+  sub(tos_tag, tos_tag, imm(1));
+  str(tos_tag, local_addr_at(tmp4));
+  prefetch(22);
+  dispatch(0);
+
+  bind(slow);
+  comment("plain iload X");
+  ldr(tos_val, local_addr_at(tmp4));
+  prefetch(2);
+  dispatch(1);
+}
+
 #if !ENABLE_CPU_VARIANT
 void bc_init_static_array::generate() {
 
