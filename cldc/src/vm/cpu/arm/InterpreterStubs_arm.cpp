@@ -249,7 +249,11 @@ bind_global("start_lightweight_thread_asm");
   str(r2, imm_index(r0, Thread::pending_entries_offset()), ne);
   comment("} else {");
   comment("  invoke_pending_entries(THREAD)");
-  bl("invoke_pending_entries", eq);
+  // no conditional bl: the Vita module loader turns a relocated bleq into beq
+  Label terminating;
+  b(terminating, ne);
+  bl("invoke_pending_entries");
+  bind(terminating);
   comment("}");
 
   comment("if (!TestCompiler) {");
