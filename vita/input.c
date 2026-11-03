@@ -36,6 +36,13 @@ static int is_direction(int key) {
            key == JAVACALL_KEY_6 || key == JAVACALL_KEY_8;
 }
 
+static void pen_up(void) {
+    if (pen_down) {
+        javanotify_pen_event(pen_x, pen_y, JAVACALL_PENRELEASED);
+        pen_down = 0;
+    }
+}
+
 static void release_all(void) {
     int i;
     for (i = 0; i < 128; i++)
@@ -43,28 +50,28 @@ static void release_all(void) {
             javanotify_key_event((javacall_key)(i - 32), JAVACALL_KEYRELEASED);
             held[i] = 0;
         }
-    if (pen_down) {
-        javanotify_pen_event(pen_x, pen_y, JAVACALL_PENRELEASED);
-        pen_down = 0;
-    }
+    pen_up();
 }
 
-/* *kp_key gets the on-screen keypad key under the finger, if any */
-static void poll_touch(int *kp_key) {
-    SceTouchData t;
-    int x, y, touching;
-    touching = sceTouchPeek(SCE_TOUCH_PORT_FRONT, &t, 1) >= 0 && t.reportNum > 0;
-    if (touching && keypad_is_open() &&
-        keypad_hit(t.report[0].x * 480 / 1920, t.report[0].y * 272 / 1088, kp_key)) {
+/* front screen: keypad first, then the game's pen or the two half-screen buttons.
+ * *kp_key gets the keypad key under the finger, *halves bit 0/1 the left/right half */
+static void poll_touch(const SceTouchData *t, int *kp_key, int *halves) {
+    int x, y, touching = t->reportNum > 0;
+    int sx = t->report[0].x * SCREEN_W / 1920, sy = t->report[0].y * SCREEN_H / 1088;
+    if (touching && keypad_is_open() && keypad_hit(sx, sy, kp_key)) {
         touching = 0; /* the keypad took it, the game sees the finger lifted */
     } else if (keypad_is_open()) {
         keypad_release_touch();
     }
-    if (!touching || !video_touch_to_game(t.report[0].x, t.report[0].y, &x, &y)) {
-        if (pen_down) {
-            javanotify_pen_event(pen_x, pen_y, JAVACALL_PENRELEASED);
-            pen_down = 0;
-        }
+    /* touch games keep the pen: only fingers outside the picture count as buttons */
+    if (touching && j2v_in_game && j2v_cfg.touch == TOUCH_BUTTONS) {
+        unsigned i;
+        for (i = 0; i < t->reportNum && i < 2; i++)
+            if (!video_touch_to_game(t->report[i].x, t->report[i].y, &x, &y))
+                *halves |= t->report[i].x < 960 ? 1 : 2;
+    }
+    if (!touching || !video_touch_to_game(t->report[0].x, t->report[0].y, &x, &y)) {
+        pen_up();
         return;
     }
     if (!pen_down)
@@ -76,13 +83,25 @@ static void poll_touch(int *kp_key) {
     pen_y = y;
 }
 
+/* rear pad halves, bit 0 left and bit 1 right */
+static int rear_halves(void) {
+    SceTouchData t;
+    unsigned i;
+    int r = 0;
+    if (!j2v_in_game || sceTouchPeek(SCE_TOUCH_PORT_BACK, &t, 1) < 0)
+        return 0;
+    for (i = 0; i < t.reportNum && i < 2; i++)
+        r |= t.report[i].x < 960 ? 1 : 2;
+    return r;
+}
+
 static void mark(unsigned char *want, int key) {
     if (key != JAVACALL_KEY_INVALID)
         want[slot(key)] = 1;
 }
 
-static void game_keys(const SceCtrlData *pad, unsigned char *want) {
-    int up, down, left, right, i;
+static void game_keys(const SceCtrlData *pad, unsigned char *want, int front, int rear) {
+    int up, down, left, right, i, q;
     const GameConfig *c = &j2v_cfg;
 
     up = (pad->buttons & SCE_CTRL_UP) || pad->ly < 128 - DEADZONE;
@@ -90,8 +109,9 @@ static void game_keys(const SceCtrlData *pad, unsigned char *want) {
     left = (pad->buttons & SCE_CTRL_LEFT) || pad->lx < 128 - DEADZONE;
     right = (pad->buttons & SCE_CTRL_RIGHT) || pad->lx > 128 + DEADZONE;
 
-    /* rotated mode: the Vita is held with its right side up */
-    if (j2v_in_game && c->rotate) {
+    /* turned screen: the d-pad turns with the nearest quarter so up stays up on screen */
+    q = j2v_in_game ? ((c->rotate + 45) / 90) & 3 : 0;
+    for (i = 0; i < q; i++) {
         int u = up, d = down, l = left, r = right;
         up = r; down = l; left = u; right = d;
     }
@@ -114,10 +134,15 @@ static void game_keys(const SceCtrlData *pad, unsigned char *want) {
     if (pad->ry > 128 + DEADZONE) mark(want, c->map[BTN_RS_DOWN]);
     if (pad->rx < 128 - DEADZONE) mark(want, c->map[BTN_RS_LEFT]);
     if (pad->rx > 128 + DEADZONE) mark(want, c->map[BTN_RS_RIGHT]);
+    if (rear & 1) mark(want, c->map[BTN_REAR_L]);
+    if (rear & 2) mark(want, c->map[BTN_REAR_R]);
+    if (front & 1) mark(want, c->map[BTN_FRONT_L]);
+    if (front & 2) mark(want, c->map[BTN_FRONT_R]);
 }
 
 static int input_thread(SceSize args, void *argp) {
     SceCtrlData pad;
+    SceTouchData touch;
     uint32_t last = 0, swallow = 0;
     int typing = 0, type_ticks = 0;
     int idle = 0, was_menu = 0, was_game = 0, was_kp = 0, select_ticks = -1;
@@ -126,7 +151,7 @@ static int input_thread(SceSize args, void *argp) {
     while (running) {
         unsigned char want[128];
         uint32_t pressed;
-        int i, kp_key;
+        int i, kp_key, front = 0;
 
         sceKernelDelayThread(10000);
         memset(&pad, 0, sizeof(pad));
@@ -157,19 +182,28 @@ static int input_thread(SceSize args, void *argp) {
             type_ticks = TYPE_GAP;
         }
 
+        memset(&touch, 0, sizeof(touch));
+        sceTouchPeek(SCE_TOUCH_PORT_FRONT, &touch, 1);
+
         if (menu_is_open()) {
             menu_input(pressed);
             was_menu = 1;
             select_ticks = -1;
             continue;
         }
+        if (adjust_is_open()) {
+            release_all();
+            adjust_input(pressed, &touch);
+            was_menu = 1;
+            continue;
+        }
         /* buttons still held from the menu, the keypad or the launcher must not
          * reach the game (or the launcher after Exit game) until they are let go */
-        if (was_menu || was_game != j2v_in_game || was_kp != keypad_is_open())
+        if (was_menu || was_game != j2v_in_game || was_kp != keypad_has_buttons())
             swallow = pad.buttons;
         was_menu = 0;
         was_game = j2v_in_game;
-        was_kp = keypad_is_open();
+        was_kp = keypad_has_buttons();
         swallow &= pad.buttons;
         pad.buttons &= ~swallow;
         pressed &= ~swallow;
@@ -192,16 +226,16 @@ static int input_thread(SceSize args, void *argp) {
         }
 
         kp_key = JAVACALL_KEY_INVALID;
-        if (keypad_is_open() && !j2v_in_game)
+        if (keypad_has_buttons() && !j2v_in_game)
             keypad_toggle();
-        if (keypad_is_open()) {
+        if (keypad_has_buttons()) {
             kp_key = keypad_input(pressed, pad.buttons);
             pad.buttons &= ~KEYPAD_BUTTONS;
             pad.lx = pad.ly = 128;
         }
-        poll_touch(&kp_key);
+        poll_touch(&touch, &kp_key, &front);
         memset(want, 0, sizeof(want));
-        game_keys(&pad, want);
+        game_keys(&pad, want, front, rear_halves());
         mark(want, kp_key);
         for (i = 0; i < 128; i++) {
             javacall_key key = (javacall_key)(i - 32);
@@ -227,6 +261,7 @@ void input_start(void) {
         return;
     sceCtrlSetSamplingMode(SCE_CTRL_MODE_ANALOG);
     sceTouchSetSamplingState(SCE_TOUCH_PORT_FRONT, SCE_TOUCH_SAMPLING_STATE_START);
+    sceTouchSetSamplingState(SCE_TOUCH_PORT_BACK, SCE_TOUCH_SAMPLING_STATE_START);
     running = 1;
     thread = sceKernelCreateThread("j2v_input", input_thread, 0x10000100, 0x4000, J2V_HELPER_CPUS, 0, NULL);
     if (thread >= 0)
