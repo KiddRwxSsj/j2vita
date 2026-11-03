@@ -144,6 +144,25 @@ MidpInstallInfo midp_get_suite_install_info(SuiteIdType suiteId);
 void midp_free_install_info(MidpInstallInfo* pInstallInfo);
 
 /**
+ * Points a suite at its JAR after the JAR was moved: the install info and
+ * the suite's JAR path in memory. midp_save_suites_data() writes the list.
+ *
+ * @return ALL_OK on success
+ */
+MIDPError midp_set_suite_jar_url(SuiteIdType suiteId, const pcsl_string* pUrl);
+
+/** Writes the in-memory suite list to _suites.dat. */
+MIDPError midp_save_suites_data(void);
+
+/**
+ * The suite's JAR path, "MIDlet-Name|MIDlet-Vendor" and JAR size from the suite list,
+ * read without opening the suite (it counts as corrupted while its JAR is gone).
+ * The caller frees both strings.
+ */
+MIDPError midp_get_suite_jar_and_key(SuiteIdType suiteId, pcsl_string* pJar, pcsl_string* pKey,
+                                     jint* pJarSize);
+
+/**
  * Stores or updates a midlet suite.
  *
  * @param pInstallInfo structure containing the following information:<br>

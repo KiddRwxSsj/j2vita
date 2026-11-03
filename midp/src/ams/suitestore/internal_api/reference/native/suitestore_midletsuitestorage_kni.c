@@ -431,7 +431,10 @@ KNIDECL(com_sun_midp_midletsuite_MIDletSuiteStorage_suiteExists) {
     if (status == ALL_OK) {
         exists = KNI_TRUE;
     } else if (status == SUITE_CORRUPTED_ERROR) {
-        remove_from_suite_list_and_save(suiteId);
+        /* GameSync relinks or hides it, dropping it here loses the suite and its saves */
+        if (!suite_only_jar_missing(suiteId)) {
+            remove_from_suite_list_and_save(suiteId);
+        }
         KNI_ThrowNew(midletsuiteCorrupted, NULL);
     } else if (status == OUT_OF_MEMORY) {
         KNI_ThrowNew(midpOutOfMemoryError, NULL);

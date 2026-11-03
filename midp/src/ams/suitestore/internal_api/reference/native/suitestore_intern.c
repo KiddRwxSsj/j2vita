@@ -1336,6 +1336,24 @@ check_for_corrupted_suite(SuiteIdType suiteId) {
     return status;
 }
 
+/* the suite runs from the user's JAR, which may only have moved: its own files are all there */
+int
+suite_only_jar_missing(SuiteIdType suiteId) {
+    MidletSuiteData *pData = get_suite_data(suiteId);
+    pcsl_string ii;
+    int r;
+
+    if (pData == NULL || storage_file_exists(&pData->varSuiteData.pathToJar)) {
+        return 0;
+    }
+    if (get_suite_filename(suiteId, &INSTALL_INFO_FILENAME, &ii) != ALL_OK) {
+        return 0;
+    }
+    r = storage_file_exists(&ii);
+    pcsl_string_free(&ii);
+    return r;
+}
+
 /**
  * Tries to repair the suite database.
  *

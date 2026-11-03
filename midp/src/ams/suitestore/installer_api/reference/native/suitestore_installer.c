@@ -284,6 +284,94 @@ read_install_info(char** ppszError, SuiteIdType suiteId) {
     return installInfo;
 }
 
+MIDPError
+midp_set_suite_jar_url(SuiteIdType suiteId, const pcsl_string* pUrl) {
+    MidpInstallInfo installInfo;
+    MidletSuiteData* pData;
+    char* pszError = NULL;
+    MIDPError status;
+
+    if (midpInit(LIST_LEVEL) != 0) {
+        return OUT_OF_MEMORY;
+    }
+    installInfo = read_install_info(&pszError, suiteId);
+    storageFreeError(pszError);
+    if (installInfo.status != ALL_OK) {
+        return installInfo.status;
+    }
+    pcsl_string_free(&installInfo.jarUrl_s);
+    if (pcsl_string_dup(pUrl, &installInfo.jarUrl_s) != PCSL_STRING_OK) {
+        midp_free_install_info(&installInfo);
+        return OUT_OF_MEMORY;
+    }
+    pszError = NULL;
+    status = write_install_info(&pszError, suiteId, &installInfo);
+    storageFreeError(pszError);
+    midp_free_install_info(&installInfo);
+    if (status != ALL_OK) {
+        return status;
+    }
+
+    pszError = NULL;
+    status = read_suites_data(&pszError);
+    storageFreeError(pszError);
+    if (status != ALL_OK) {
+        return status;
+    }
+    pData = get_suite_data(suiteId);
+    if (pData == NULL) {
+        return NOT_FOUND;
+    }
+    pcsl_string_free(&pData->varSuiteData.pathToJar);
+    if (pcsl_string_dup(pUrl, &pData->varSuiteData.pathToJar) != PCSL_STRING_OK) {
+        return OUT_OF_MEMORY;
+    }
+    pData->isChecked = 0;
+    return ALL_OK;
+}
+
+MIDPError
+midp_save_suites_data(void) {
+    char* pszError = NULL;
+    MIDPError status = write_suites_data(&pszError);
+    storageFreeError(pszError);
+    return status;
+}
+
+MIDPError
+midp_get_suite_jar_and_key(SuiteIdType suiteId, pcsl_string* pJar, pcsl_string* pKey, jint* pJarSize) {
+    char* pszError = NULL;
+    MidletSuiteData* pData;
+    pcsl_string bar = PCSL_STRING_NULL, nameBar = PCSL_STRING_NULL;
+    MIDPError status;
+
+    *pJar = PCSL_STRING_NULL;
+    *pKey = PCSL_STRING_NULL;
+    status = read_suites_data(&pszError);
+    storageFreeError(pszError);
+    if (status != ALL_OK) {
+        return status;
+    }
+    pData = get_suite_data(suiteId);
+    if (pData == NULL) {
+        return NOT_FOUND;
+    }
+    *pJarSize = pData->jarSize;
+    if (pcsl_string_dup(&pData->varSuiteData.pathToJar, pJar) != PCSL_STRING_OK ||
+            pcsl_string_convert_from_utf8((const jbyte*)"|", 1, &bar) != PCSL_STRING_OK ||
+            pcsl_string_cat(&pData->varSuiteData.suiteName, &bar, &nameBar) != PCSL_STRING_OK ||
+            pcsl_string_cat(&nameBar, &pData->varSuiteData.suiteVendor, pKey) != PCSL_STRING_OK) {
+        status = OUT_OF_MEMORY;
+    }
+    pcsl_string_free(&bar);
+    pcsl_string_free(&nameBar);
+    if (status != ALL_OK) {
+        pcsl_string_free(pJar);
+        pcsl_string_free(pKey);
+    }
+    return status;
+}
+
 /**
  * Frees an InstallInfo struct. Does nothing if passed NULL.
  *

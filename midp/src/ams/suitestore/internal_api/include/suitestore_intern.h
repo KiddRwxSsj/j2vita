@@ -302,6 +302,9 @@ build_suite_filename(SuiteIdType suiteId, const pcsl_string* filename,
  */
 int remove_from_suite_list_and_save(SuiteIdType suiteId);
 
+/** 1 when only the suite's JAR is gone, so the suite can follow a moved JAR. */
+int suite_only_jar_missing(SuiteIdType suiteId);
+
 /**
  * Gets filename of the secure suite resource by suiteId and resource name
  *
