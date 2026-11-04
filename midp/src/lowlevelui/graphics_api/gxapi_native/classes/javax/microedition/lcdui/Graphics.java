@@ -954,6 +954,7 @@ public class Graphics {
      * @see #clipRect(int, int, int, int)
      */
     public synchronized void setClip(int x, int y, int width, int height) {
+        probe(x, y, width, height);
 
         int translatedX1, translatedY1;
         int translatedX2, translatedY2;
@@ -1071,7 +1072,23 @@ public class Graphics {
      * @param height the height of the rectangle to be filled
      * @see #drawRect(int, int, int, int)
      */
-    public native void fillRect(int x, int y, int width, int height);
+    public void fillRect(int x, int y, int width, int height) {
+        probe(x, y, width, height);
+        fillRect0(x, y, width, height);
+    }
+
+    private native void fillRect0(int x, int y, int width, int height);
+
+    /**
+     * A game that fills or clips a rectangle from the screen corner past the
+     * screen edge was made for a bigger screen; J2Vita resizes to it.
+     */
+    private void probe(int x, int y, int width, int height) {
+        if (displayId != -1 && x + transX == 0 && y + transY == 0 &&
+            (width > maxWidth || height > maxHeight)) {
+            com.pspkvm.system.J2Vita.screenHint(width, height);
+        }
+    }
  
     /**
      * Draws the outline of the specified rectangle using the current
@@ -1357,6 +1374,9 @@ public class Graphics {
             throw new NullPointerException();
         }
 
+        if (anchor == 0 || anchor == (TOP | LEFT)) {
+            probe(x, y, image.getWidth(), image.getHeight());
+        }
         if (!render(image, x, y, anchor)) {
             throw new IllegalArgumentException("");
         }

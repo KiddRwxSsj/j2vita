@@ -414,7 +414,8 @@ public class MVMManager extends MIDlet
                 MIDletSuiteStorage.getMIDletSuiteStorage().getMIDletSuite(info.suiteId, false);
             if (suite != null) {
                 String[] keys = {"Nokia-MIDlet-Original-Display-Size",
-                                 "Nokia-MIDlet-Target-Display-Size", "MIDlet-Jar-URL"};
+                                 "Nokia-MIDlet-Target-Display-Size", "JumpDevices",
+                                 "MIDlet-Jar-URL"};
                 for (int i = 0; i < keys.length; i++) {
                     String v = suite.getProperty(keys[i]);
                     if (v != null) hint.append(v).append(' ');

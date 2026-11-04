@@ -7,8 +7,8 @@ void video_set_game_size(int w, int h);
 void video_submit(const uint16_t *src, int y0, int y1, int src_is_rows);
 void video_wait_unpaused(void);
 
-#define MAX_W 640
-#define MAX_H 640
+#define MAX_W 800
+#define MAX_H 800
 
 static int scr_w = 480, scr_h = 272;
 static int enable_flush = 1;

@@ -6,15 +6,14 @@
 #include <strings.h>
 
 /*
- * Device id = size * KEYSET_COUNT + keyset. The sizes must match j2v_sizes
- * in vita/config.c. Rotation is done by the Vita frontend, so it is always 0.
+ * Device id = size * KEYSET_COUNT + keyset, sizes are j2v_sizes in vita/config.c.
+ * Rotation is done by the Vita frontend, so it is always 0.
  */
-static const int sizes[][2] = {
-    {240, 320}, {176, 208}, {176, 220}, {128, 160},
-    {320, 240}, {240, 400}, {360, 640}, {480, 272}, {640, 360},
-    {480, 320}, {320, 480},
-};
-#define SIZE_COUNT ((int)(sizeof(sizes) / sizeof(sizes[0])))
+typedef struct { int w, h; } GameSize;
+extern GameSize j2v_sizes[];
+extern const int j2v_size_count;
+#define SIZE_COUNT j2v_size_count
+#define MAX_DEVICES (32 * 4)
 
 typedef struct {
     const char *name;
@@ -32,7 +31,7 @@ static const KEYSET keysets[] = {
 #define DEVICE_COUNT (SIZE_COUNT * KEYSET_COUNT)
 
 static int current_device = -1;
-static char names[DEVICE_COUNT][40];
+static char names[MAX_DEVICES][40];
 
 static int valid(int id) { return id >= 0 && id < DEVICE_COUNT; }
 static const KEYSET *ks(int id) { return &keysets[id % KEYSET_COUNT]; }
@@ -44,18 +43,18 @@ int javacall_devemu_get_devices_number() {
 char* javacall_devemu_get_device_name(int id) {
     if (!valid(id))
         return NULL;
-    if (!names[id][0])
-        snprintf(names[id], sizeof(names[id]), "%s %dx%d", ks(id)->name,
-                 sizes[id / KEYSET_COUNT][0], sizes[id / KEYSET_COUNT][1]);
+    /* not cached, the last size follows the running game */
+    snprintf(names[id], sizeof(names[id]), "%s %dx%d", ks(id)->name,
+             j2v_sizes[id / KEYSET_COUNT].w, j2v_sizes[id / KEYSET_COUNT].h);
     return names[id];
 }
 
 int javacall_devemu_get_device_width(int id) {
-    return valid(id) ? sizes[id / KEYSET_COUNT][0] : 480;
+    return valid(id) && j2v_sizes[id / KEYSET_COUNT].w ? j2v_sizes[id / KEYSET_COUNT].w : 240;
 }
 
 int javacall_devemu_get_device_height(int id) {
-    return valid(id) ? sizes[id / KEYSET_COUNT][1] : 272;
+    return valid(id) && j2v_sizes[id / KEYSET_COUNT].h ? j2v_sizes[id / KEYSET_COUNT].h : 320;
 }
 
 int javacall_devemu_get_current_device() {
