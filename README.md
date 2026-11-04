@@ -19,12 +19,13 @@ input, sound, menus) was rewritten for the Vita.
 > **No games are included here or in the release.** Bring your own `.jar` files.
 
 <p align="center">
-  <img src="screenshots/launcher.png" alt="Game list" width="400"/>
-  <img src="screenshots/gameplay.png" alt="The Amazing Spider-Man running" width="400"/>
+  <img src="screenshots/launcher.png" alt="Game list with folders" width="400"/>
+  <img src="screenshots/menu.png" alt="In-game menu" width="400"/>
 </p>
 <p align="center">
-  <img src="screenshots/ingame-menu.png" alt="In-game menu" width="400"/>
-  <img src="screenshots/options.png" alt="Options" width="400"/>
+  <img src="screenshots/display.png" alt="Display settings with Auto resolution" width="265"/>
+  <img src="screenshots/controls.png" alt="Controls settings" width="265"/>
+  <img src="screenshots/keypad.png" alt="On-screen keypad settings" width="265"/>
 </p>
 
 The game compatibility list lives on the [project page](https://kiddrwxssj.github.io/j2vita/).
@@ -37,11 +38,14 @@ with [ShaRKBR33D](https://github.com/Rinnegatamante/ShaRKBR33D/releases) if you 
 
 Then add some games:
 
-1. Copy your `.jar` files to `ux0:data/j2vita/games/`.
-2. Open J2Vita. New games are installed on their own and show up in the list.
+1. Copy your `.jar` files to `ux0:data/j2vita/games/`. Subfolders work too, and `.zip` files
+   with JARs inside are unpacked for you.
+2. Open J2Vita. New games are installed on their own and show up in the list, even when you copy
+   them while J2Vita is open.
 3. Pick a game and press Cross.
 
 To update a game, overwrite its `.jar`. Deleting a game from the list also deletes its `.jar`.
+Moving `.jar` files between folders, from J2Vita or from VitaShell, keeps their saves.
 
 ```
 ux0:data/j2vita/
@@ -58,24 +62,29 @@ Games keep their saves in `ux0:data/j2vita/appdb/`, so updating J2Vita doesn't t
 
 | Vita | Does |
 |---|---|
-| Cross | Play |
-| Triangle / L / Start | Options: delete, settings, quit |
+| Cross | Play, open a folder |
+| Circle | Back to the parent folder |
+| Triangle / L | Options: move to folder, delete, new/rename/delete folder, settings, quit |
 | SELECT | Settings |
+
+You can also drag the list with your finger. Tap a game to select it and tap it again to start it.
 
 **In game** (defaults; every game can have its own mapping)
 
 | Vita | Phone key |
 |---|---|
 | D-Pad / Left stick | Arrows (or 2 4 6 8, see "D-pad sends") |
-| Cross | 5 |
+| Cross | Fire (5) |
 | Circle / R | Right soft key |
 | L / Start | Left soft key |
 | Square / Triangle | `*` / `#` |
 | Right stick | 2 / 8 / 4 / 6 |
+| Rear touchpad left / right half | 1 / 3 |
 | SELECT (tap) | Menu, the game pauses |
 | SELECT (hold) | On-screen keypad |
 
-The touchscreen works as the phone's touchscreen.
+The touchscreen works as the phone's touchscreen. Set a rear touchpad half to `None` in Controls
+if you keep touching it by accident.
 
 The **on-screen keypad** is there for cheat codes and anything that needs a key the Vita doesn't
 have. Move with the D-Pad, press with Cross (it's held for as long as you hold Cross), Square moves
@@ -89,10 +98,24 @@ the keypad to the other side and Circle hides it. You can also just tap the keys
   only remembers what you change inside it; everything else keeps following the global settings.
 * **Themes**: White (default), Black, Blue and Green.
 * **Performance overlay**: `FPS` shows the frame rate, `Full` adds how busy the Java VM is. Java
-  games pick their own frame rate, so a low number isn't always a problem: if the load stays under
-  ~97% the game is running at the speed it was made for. `CPU bound` means the Vita can't keep up.
-* **Resolution** is guessed from the game's name and manifest the first time. If a game looks
-  cropped or tiny, change it and restart the game.
+  games pick their own frame rate, so a low number isn't always a problem. `Game limit` means the
+  game is waiting on its own timer and runs at the speed it was made for. `CPU limit` means the
+  Vita is what holds it back, and `14/16 FPS` shows the rate the game would like to reach.
+* **Adjust screen**: drag, pinch and twist to move, zoom and rotate the picture, the on-screen
+  keypad and the button HUD. Each game keeps its own layout.
+* **Button HUD**: a small bar that shows which phone key each Vita button sends, the rear touchpad
+  halves included (and the screen borders in `Buttons` mode).
+* **Touch screen**: `Pointer` passes touches to the game, `Buttons` turns the screen borders
+  around the picture into two extra buttons (set them in Controls).
+* **Auto-detect keys**: on a game's first start J2Vita looks at its code and sets up the soft keys,
+  2/4/6/8 and the four extra buttons (Square, Triangle and the rear touchpad halves) with the keys
+  the game uses most.
+* **On-screen keypad**: size and opacity can be changed, `Always` keeps it up for playing with
+  touch while the buttons still go to the game.
+* **Resolution** is `Auto` by default: J2Vita starts with a guess from the game's name, manifest
+  and pictures, then switches to the size the game actually draws at (480x800 included). Portrait
+  games taller than the Vita screen are turned on their side. You can still pick a fixed size.
+* **Menus**: the in-game menu is split into Display, Controls and On-screen keypad.
 * **Text entry**: open the on-screen keypad and pick **Text** to type with the Vita keyboard.
 
 ## What works

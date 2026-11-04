@@ -1,7 +1,7 @@
 TITLE_ID := JTVA00001
 TITLE := J2Vita
-VERSION ?= 0.9.1
-APP_VER ?= 00.91
+VERSION ?= 0.9.2
+APP_VER ?= 00.92
 # Timidity patch set, see ../scripts/fetch-freepats.sh
 FREEPATS ?= ../build/freepats
 # splash-free vitaGL, see ../scripts/build-vitagl.sh
@@ -17,16 +17,21 @@ ROOT := ..
 JCOUT := $(ROOT)/javacall/configuration/phoneMEFeature/vita_arm/output
 MIDP_OUT := $(ROOT)/midp/build/javacall_vita/output
 RUNTIME := $(MIDP_OUT)
+# gcc = C interpreter, asm = generated ARM interpreter (see build.sh J2V_VM)
+J2V_VM ?= asm
+ifeq ($(J2V_VM),asm)
+CFLAGS_VM := -DJ2V_ASM_VM
+endif
 
-CFLAGS := -O2 -Wall -D__vita__ -DARM -DJ2V_VERSION=\"$(VERSION)\" \
+CFLAGS := -O2 -Wall -D__vita__ -DARM -DJ2V_VERSION=\"$(VERSION)\" $(CFLAGS_VM) \
 	-I$(VITAGL)/src/source -I$(JCOUT)/inc -I$(VITASDK)/arm-vita-eabi/include/SDL2
 LDFLAGS := -Wl,-q -L$(VITAGL) \
 	-L$(MIDP_OUT)/bin/arm \
-	-L$(ROOT)/cldc/build/javacall_vita_gcc/target/bin \
+	-L$(ROOT)/cldc/build/javacall_vita_$(J2V_VM)/target/bin \
 	-L$(ROOT)/pcsl/output-vita/javacall_arm/lib \
 	-L$(JCOUT)/lib
 LIBS := -Wl,--start-group \
-	-lmidp -lcldc_vm \
+	-lmidp -lcldc_vm$(VMLIB_SUFFIX) \
 	-lpcsl_file -lpcsl_print -lpcsl_memory -lpcsl_string -lpcsl_network \
 	-ljavacall \
 	-Wl,--end-group \
@@ -40,7 +45,7 @@ LIBS := -Wl,--start-group \
 	$(FFAMR)/lib/libavcodec.a $(FFAMR)/lib/libavutil.a \
 	-lpthread -lstdc++ -lm -lc
 
-OBJS := main.o config.o video.o input.o menu.o theme.o compat.o ime.o amr.o
+OBJS := main.o config.o video.o input.o menu.o theme.o compat.o ime.o amr.o autokeys.o adjust.o
 
 all: j2vita.vpk
 
