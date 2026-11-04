@@ -27,21 +27,32 @@
 #define CHAR_W 8
 
 enum { PAGE_MAIN, PAGE_CONTROLS, PAGE_PICK };
+/* top level rows first, then each submenu's rows in the order of its group row */
 enum {
-    IT_RESUME, IT_KEYPAD, IT_THEME, IT_SCALE, IT_FILTER, IT_ROTATE, IT_SIZE, IT_KEYSET,
-    IT_DPAD, IT_CONTROLS, IT_FPS, IT_EXIT_GAME, IT_QUIT, IT_COUNT
+    IT_RESUME, IT_G_DISPLAY, IT_G_CONTROLS, IT_G_KEYPAD, IT_THEME, IT_EXIT_GAME, IT_QUIT,
+    IT_SIZE, IT_SCALE, IT_FILTER, IT_ROTATE, IT_ADJUST, IT_FPS,
+    IT_CONTROLS, IT_KEYSET, IT_DPAD, IT_TOUCH, IT_HUD, IT_AUTOKEYS,
+    IT_KEYPAD, IT_KP_SIZE, IT_KP_ALPHA, IT_COUNT
 };
-enum { GLYPH_NONE, GLYPH_CROSS, GLYPH_CIRCLE, GLYPH_SQUARE };
+enum { GLYPH_NONE, GLYPH_CROSS, GLYPH_CIRCLE, GLYPH_SQUARE, GLYPH_TRIANGLE };
 
 static const char *labels[IT_COUNT] = {
-    "Resume", "On-screen keypad", "Theme", "Screen", "Filter", "Rotate", "Resolution",
-    "Phone keys", "D-pad sends", "Controls", "Performance", "Exit game", "Quit J2Vita",
+    "Resume", "Display", "Controls", "On-screen keypad", "Theme", "Exit game", "Quit J2Vita",
+    "Resolution", "Screen", "Filter", "Rotate", "Adjust screen", "Performance",
+    "Button mapping", "Phone keys", "D-pad sends", "Touch screen", "Button HUD", "Auto-detect keys",
+    "Show keypad", "Keypad size", "Keypad opacity",
 };
 
 static const char *btn_names[BTN_COUNT] = {
     "Cross", "Circle", "Square", "Triangle", "L", "R", "Start",
     "Right stick up", "Right stick down", "Right stick left", "Right stick right",
+    "Rear touch left", "Rear touch right", "Left border touch", "Right border touch",
 };
+
+/* rows after the buttons on the Controls page */
+#define CTL_DETECT BTN_COUNT
+#define CTL_RESET (BTN_COUNT + 1)
+#define CTL_ROWS (BTN_COUNT + 2)
 
 /* the key picker is laid out like a phone keypad */
 static const int pick_keys[21] = {
@@ -61,31 +72,43 @@ static const char *pick_names[21] = {
 static void grid_move(int *cell, uint32_t p);
 
 static volatile int open_;
-static int page, sel, top, ctl_sel, pick_sel, restart_needed;
+static int page, group, sel, top, ctl_sel, pick_sel, restart_needed;
 static GameConfig before;
 
 /* in a game the menu edits that game, in the launcher it edits the global settings */
 static GameConfig *target(void) { return j2v_in_game ? &j2v_cfg : &j2v_global; }
 
+static int group_of(int it) {
+    return it < IT_SIZE ? 0 : it < IT_CONTROLS ? IT_G_DISPLAY : it < IT_KEYPAD ? IT_G_CONTROLS : IT_G_KEYPAD;
+}
+
+/* rows that open something instead of changing a value */
+static int is_link(int it) {
+    return it == IT_G_DISPLAY || it == IT_G_CONTROLS || it == IT_G_KEYPAD || it == IT_CONTROLS || it == IT_ADJUST;
+}
+
 static int visible(int it) {
+    if (group_of(it) != group)
+        return 0;
     if (j2v_in_game)
-        return it != IT_THEME;
-    return it == IT_THEME || it == IT_SCALE || it == IT_FILTER || it == IT_KEYSET || it == IT_DPAD ||
-           it == IT_CONTROLS || it == IT_FPS;
+        return it != IT_THEME && it != IT_AUTOKEYS;
+    return it == IT_THEME || it == IT_G_DISPLAY || it == IT_G_CONTROLS || it == IT_SCALE || it == IT_FILTER ||
+           it == IT_KEYSET || it == IT_DPAD || it == IT_CONTROLS || it == IT_FPS || it == IT_TOUCH ||
+           it == IT_HUD || it == IT_AUTOKEYS;
 }
 
 /* rows of the current list page */
 static int page_len(void) {
     int i, n = 0;
     if (page != PAGE_MAIN)
-        return BTN_COUNT + 1;
+        return CTL_ROWS;
     for (i = 0; i < IT_COUNT; i++)
         n += visible(i);
     return n;
 }
 
 static void step_sel(int d) {
-    int n = page == PAGE_MAIN ? IT_COUNT : BTN_COUNT + 1, i;
+    int n = page == PAGE_MAIN ? IT_COUNT : CTL_ROWS, i;
     for (i = 0; i < n; i++) {
         sel = (sel + d + n) % n;
         if (page != PAGE_MAIN || visible(sel))
@@ -117,6 +140,7 @@ void menu_open(void) {
     javacall_log_flush();
     before = *target();
     page = PAGE_MAIN;
+    group = 0;
     sel = j2v_in_game ? IT_RESUME : IT_THEME;
     top = 0;
     restart_needed = 0;
@@ -134,6 +158,7 @@ static void close_menu(void) {
     }
     pause_audio(0);
     open_ = 0;
+    hud_changed();
     video_redraw();
 }
 
@@ -147,8 +172,27 @@ static void change(int d) {
     switch (sel) {
     case IT_SCALE: c->scale = (c->scale + d + SCALE_COUNT) % SCALE_COUNT; break;
     case IT_FILTER: c->smooth = !c->smooth; break;
-    case IT_ROTATE: c->rotate = !c->rotate; break;
-    case IT_SIZE: c->size = (c->size + d + j2v_size_count) % j2v_size_count; break;
+    case IT_ROTATE: c->rotate = (((c->rotate + 45) / 90 + d + 4) % 4) * 90; break;
+    case IT_TOUCH: c->touch = (c->touch + d + TOUCH_COUNT) % TOUCH_COUNT; break;
+    case IT_HUD: c->hud = !c->hud; break;
+    case IT_AUTOKEYS: c->autokeys = !c->autokeys; break;
+    case IT_KEYPAD: c->kp_stay = !c->kp_stay; break;
+    case IT_KP_SIZE: c->kp_scale = c->kp_scale + d * 25 < 50 ? 50 : c->kp_scale + d * 25 > 400 ? 400 : c->kp_scale + d * 25; break;
+    case IT_KP_ALPHA: c->kp_alpha = c->kp_alpha + d * 10 < 20 ? 20 : c->kp_alpha + d * 10 > 100 ? 100 : c->kp_alpha + d * 10; break;
+    case IT_SIZE: {
+        /* Auto sits before the first preset */
+        int n = c->autosize ? (d > 0 ? -1 : j2v_size_count) : c->size;
+        do
+            n = (n + d + j2v_size_count) % j2v_size_count;
+        while (!j2v_sizes[n].w);
+        if (!c->autosize && (d > 0 ? n <= c->size : n >= c->size)) {
+            c->autosize = 1;
+        } else {
+            c->autosize = 0;
+            c->size = n;
+        }
+        break;
+    }
     case IT_KEYSET: c->keyset = (c->keyset + d + KEYSET_COUNT) % KEYSET_COUNT; break;
     case IT_DPAD: c->numpad_dpad = !c->numpad_dpad; break;
     case IT_FPS: c->show_fps = (c->show_fps + d + OSD_COUNT) % OSD_COUNT; break;
@@ -157,7 +201,7 @@ static void change(int d) {
         j2v_theme_serial++;
         break;
     }
-    restart_needed = j2v_in_game && (c->size != before.size || c->keyset != before.keyset);
+    restart_needed = j2v_in_game && (c->size != before.size || c->autosize != before.autosize || c->keyset != before.keyset);
 }
 
 static void open_picker(void) {
@@ -178,10 +222,15 @@ static void activate(void) {
         return;
     }
     if (page == PAGE_CONTROLS) {
-        if (sel == BTN_COUNT) {
+        if (sel == CTL_RESET) {
             GameConfig d;
             cfg_defaults(&d);
             memcpy(target()->map, d.map, sizeof(d.map));
+        } else if (sel == CTL_DETECT) {
+            if (j2v_in_game) {
+                cfg_autodetect(&j2v_cfg);
+                restart_needed = j2v_cfg.keyset != before.keyset;
+            }
         } else {
             open_picker();
         }
@@ -193,7 +242,18 @@ static void activate(void) {
         close_menu();
         keypad_toggle();
         break;
+    case IT_G_DISPLAY:
+    case IT_G_CONTROLS:
+    case IT_G_KEYPAD:
+        group = sel;
+        top = 0;
+        step_sel(1);
+        break;
     case IT_CONTROLS: page = PAGE_CONTROLS; sel = 0; top = 0; break;
+    case IT_ADJUST:
+        close_menu();
+        adjust_open();
+        break;
     case IT_EXIT_GAME:
         close_menu();
         javanotify_shutdown_current();
@@ -213,6 +273,10 @@ static void back(void) {
     } else if (page == PAGE_CONTROLS) {
         page = PAGE_MAIN;
         sel = IT_CONTROLS;
+        top = 0;
+    } else if (group) {
+        sel = group;
+        group = 0;
         top = 0;
     } else {
         close_menu();
@@ -348,6 +412,12 @@ static void glyph(int g, int cx, int cy) {
             for (x = -4; x <= 4; x++)
                 if (x <= -3 || x >= 3 || y <= -3 || y >= 3)
                     plot(cx + x, cy + y, c);
+    } else if (g == GLYPH_TRIANGLE) {
+        line(cx, cy - 5, cx - 5, cy + 4, c);
+        line(cx, cy - 5, cx + 5, cy + 4, c);
+        line(cx - 5, cy + 4, cx + 5, cy + 4, c);
+        line(cx, cy - 4, cx - 4, cy + 4, c);
+        line(cx, cy - 4, cx + 4, cy + 4, c);
     }
 }
 
@@ -390,15 +460,26 @@ static const char *main_value(int it, char *buf, int len) {
     switch (it) {
     case IT_SCALE: return scales[c->scale];
     case IT_FILTER: return c->smooth ? "Smooth" : "Sharp";
-    case IT_ROTATE: return c->rotate ? "On" : "Off";
+    case IT_ROTATE:
+        snprintf(buf, len, "%d deg", c->rotate);
+        return buf;
+    case IT_TOUCH: return c->touch == TOUCH_BUTTONS ? "Buttons" : "Pointer";
+    case IT_HUD: return c->hud ? "On" : "Off";
+    case IT_AUTOKEYS: return c->autokeys ? "On" : "Off";
     case IT_SIZE:
-        snprintf(buf, len, "%dx%d", j2v_sizes[c->size].w, j2v_sizes[c->size].h);
+        snprintf(buf, len, c->autosize ? "Auto %dx%d" : "%dx%d", j2v_sizes[c->size].w, j2v_sizes[c->size].h);
         return buf;
     case IT_KEYSET: return keysets[c->keyset];
     case IT_DPAD: return c->numpad_dpad ? "2 4 6 8" : "Arrows";
     case IT_FPS: return c->show_fps == OSD_FULL ? "Full" : c->show_fps == OSD_FPS ? "FPS" : "Off";
     case IT_THEME: return j2v_theme_names[j2v_global.theme];
-    case IT_KEYPAD: return keypad_is_open() ? "On" : "Off";
+    case IT_KEYPAD: return c->kp_stay ? "Always" : keypad_has_buttons() ? "On" : "Off";
+    case IT_KP_SIZE:
+        snprintf(buf, len, "%d%%", c->kp_scale);
+        return buf;
+    case IT_KP_ALPHA:
+        snprintf(buf, len, "%d%%", c->kp_alpha);
+        return buf;
     default: return NULL;
     }
 }
@@ -454,12 +535,14 @@ static void draw_list(int px, int pw, int y0) {
         last = idx == n - 1 || r == VIS_ROWS - 1;
         next_sel = idx + 1 == cur;
         if (page == PAGE_MAIN) {
-            const char *v = i == IT_CONTROLS ? ">" : main_value(i, buf, sizeof(buf));
-            row(px, y0 + r * ROW_H, pw, selected, last, next_sel, labels[i], v,
-                v && i != IT_CONTROLS);
+            const char *v = is_link(i) ? ">" : main_value(i, buf, sizeof(buf));
+            row(px, y0 + r * ROW_H, pw, selected, last, next_sel, labels[i], v, v && !is_link(i));
         } else if (i < BTN_COUNT) {
             row(px, y0 + r * ROW_H, pw, selected, last, next_sel, btn_names[i],
                 cfg_key_name(c->map[i]), 1);
+        } else if (i == CTL_DETECT) {
+            row(px, y0 + r * ROW_H, pw, selected, last, next_sel,
+                j2v_in_game ? "Detect from game" : "Detect from game (in game)", NULL, 0);
         } else {
             row(px, y0 + r * ROW_H, pw, selected, 1, 0, "Reset to defaults", NULL, 0);
         }
@@ -528,52 +611,72 @@ static const char *kp_names[21] = {
 };
 
 static volatile int kp_open;
-static int kp_sel = 13, kp_left, kp_down, kp_touch = -1;
+static int kp_sel = 13, kp_down, kp_touch = -1;
+/* dragging the keypad by its title bar: finger offset from the top left corner */
+static int kp_drag, kp_dx, kp_dy;
 
-static void kp_geometry(int w, int h, int *px, int *py) {
-    *px = kp_left ? 6 : w - grid_w(KP_CW) - 6;
-    *py = (h - grid_h()) / 2;
-}
-
-int keypad_is_open(void) { return kp_open; }
+int keypad_is_open(void) { return kp_open || (j2v_in_game && j2v_cfg.kp_stay); }
+int keypad_has_buttons(void) { return kp_open; }
 
 void keypad_toggle(void) {
     kp_open = !kp_open;
     kp_down = 0;
     kp_touch = -1;
+    kp_drag = 0;
     video_redraw();
 }
 
 int keypad_input(uint32_t p, uint32_t buttons) {
-    int old_sel = kp_sel, old_down = kp_down, old_left = kp_left;
+    int old_sel = kp_sel, old_down = kp_down;
     if (p & SCE_CTRL_CIRCLE) {
         keypad_toggle();
         return JAVACALL_KEY_INVALID;
     }
-    if (p & SCE_CTRL_SQUARE)
-        kp_left = !kp_left;
+    if (p & SCE_CTRL_SQUARE) {
+        /* flip to the mirror spot on the other side */
+        int x, y, w, h;
+        video_keypad_rect(&x, &y, &w, &h);
+        j2v_cfg.kp_x = SCREEN_W - x - w;
+        j2v_cfg.kp_y = y;
+        cfg_save();
+        video_redraw();
+    }
     grid_move(&kp_sel, p);
     if ((p & SCE_CTRL_CROSS) && kp_sel == KP_TEXT)
         ime_open();
     kp_down = (buttons & SCE_CTRL_CROSS) != 0;
-    if (kp_sel != old_sel || kp_down != old_down || kp_left != old_left)
+    if (kp_sel != old_sel || kp_down != old_down)
         video_redraw();
     return kp_down ? pick_keys[kp_sel] : JAVACALL_KEY_INVALID;
 }
 
 int keypad_hit(int x, int y, int *key) {
-    int px, py, gx, gy, col, row;
-    kp_geometry(480, 272, &px, &py);
+    int rx, ry, rw, rh, lx, ly, gx, gy, col, row;
+    video_keypad_rect(&rx, &ry, &rw, &rh);
     *key = JAVACALL_KEY_INVALID;
-    if (x < px || y < py || x >= px + grid_w(KP_CW) || y >= py + grid_h()) {
+    if (kp_drag) {
+        j2v_cfg.kp_x = x - kp_dx;
+        j2v_cfg.kp_y = y - kp_dy;
+        video_redraw();
+        return 1;
+    }
+    if (x < rx || y < ry || x >= rx + rw || y >= ry + rh) {
         if (kp_touch >= 0) {
             kp_touch = -1;
             video_redraw();
         }
         return 0;
     }
-    gx = x - (px + 12);
-    gy = y - (py + TITLE_H + 6);
+    lx = (x - rx) * KP_W / rw;
+    ly = (y - ry) * KP_H / rh;
+    if (ly < TITLE_H && kp_touch < 0) {
+        kp_drag = 1;
+        kp_dx = x - rx;
+        kp_dy = y - ry;
+        return 1;
+    }
+    gx = lx - 12;
+    gy = ly - (TITLE_H + 6);
     col = gx / (KP_CW + GRID_GAP);
     row = gy / (GRID_CH + 3);
     if (gx >= 0 && gy >= 0 && col < 3 && row < 7 && gx % (KP_CW + GRID_GAP) < KP_CW) {
@@ -591,21 +694,140 @@ int keypad_hit(int x, int y, int *key) {
 }
 
 void keypad_release_touch(void) {
+    if (kp_drag) {
+        kp_drag = 0;
+        cfg_save();
+    }
     if (kp_touch >= 0) {
         kp_touch = -1;
         video_redraw();
     }
 }
 
-void keypad_draw(uint32_t *buf, int w, int h) {
-    int px, py;
+void keypad_draw(uint32_t *buf) {
+    fb = buf;
+    fw = KP_W;
+    fh = KP_H;
+    memset(fb, 0, (size_t)KP_W * KP_H * 4);
+    if (kp_open)
+        grid(0, 0, KP_CW, kp_names, "Keypad", kp_sel, kp_down || kp_touch >= 0, JAVACALL_KEY_INVALID,
+             GLYPH_CROSS, "Press", GLYPH_CIRCLE, "Hide");
+    else
+        grid(0, 0, KP_CW, kp_names, "Keypad", kp_touch, 1, JAVACALL_KEY_INVALID,
+             GLYPH_NONE, NULL, GLYPH_NONE, NULL);
+}
+
+static const char *key_short(int key) {
+    static char d[2];
+    if (key >= JAVACALL_KEY_0 && key <= JAVACALL_KEY_9) {
+        d[0] = (char)key;
+        d[1] = 0;
+        return d;
+    }
+    switch (key) {
+    case JAVACALL_KEY_SOFT1: return "SL";
+    case JAVACALL_KEY_SOFT2: return "SR";
+    case JAVACALL_KEY_SELECT: return "OK";
+    case JAVACALL_KEY_ASTERISK: return "*";
+    case JAVACALL_KEY_POUND: return "#";
+    case JAVACALL_KEY_UP: return "Up";
+    case JAVACALL_KEY_DOWN: return "Dn";
+    case JAVACALL_KEY_LEFT: return "Lt";
+    case JAVACALL_KEY_RIGHT: return "Rt";
+    case JAVACALL_KEY_CLEAR: return "C";
+    default: return "";
+    }
+}
+
+/* button -> phone key reminder, right aligned so the default corner anchors it */
+void hud_draw(uint32_t *buf) {
+    /* face buttons get their glyph, the rest a short label: L/R, rear touch halves, border touch */
+    static const int btn[10] = {BTN_CROSS, BTN_CIRCLE, BTN_SQUARE, BTN_TRIANGLE, BTN_L, BTN_R,
+                                BTN_REAR_L, BTN_REAR_R, BTN_FRONT_L, BTN_FRONT_R};
+    static const int gl[4] = {GLYPH_CROSS, GLYPH_CIRCLE, GLYPH_SQUARE, GLYPH_TRIANGLE};
+    static const char *const label[10] = {"", "", "", "", "L", "R", "RL", "RR", "FL", "FR"};
+    int i, n = j2v_cfg.touch == TOUCH_BUTTONS ? 10 : 8, w = 0, x, x0;
+
+    fb = buf;
+    fw = HUD_W;
+    fh = HUD_H;
+    memset(fb, 0, (size_t)HUD_W * HUD_H * 4);
+    for (i = 0; i < n; i++) {
+        int k = (int)strlen(key_short(j2v_cfg.map[btn[i]]));
+        if (k)
+            w += (i < 4 ? 14 : CHAR_W * (int)strlen(label[i]) + 6) + CHAR_W * k + 12;
+    }
+    if (!w)
+        return;
+    w += 12;
+    if (w > HUD_W - 3)
+        w = HUD_W - 3;
+    x0 = HUD_W - w - 3;
+    round_box(x0 + 2, 3, w, 20, 10, T(TC_SHADOW), T(TC_SHADOW));
+    round_box(x0, 0, w, 20, 10, COL_EDGE, COL_EDGE);
+    round_box(x0 + 1, 1, w - 2, 18, 9, T(TC_PANEL_TOP), T(TC_PANEL_BOT));
+    x = x0 + 12;
+    for (i = 0; i < n; i++) {
+        const char *k = key_short(j2v_cfg.map[btn[i]]);
+        if (!*k)
+            continue;
+        if (i < 4) {
+            glyph(gl[i], x + 4, 10);
+            x += 14;
+        } else {
+            text(x, 2, CHAR_W * 2, label[i], T(TC_GLYPH));
+            x += CHAR_W * (int)strlen(label[i]) + 6;
+        }
+        text(x, 2, CHAR_W * 2, k, COL_TEXT);
+        x += CHAR_W * (int)strlen(k) + 12;
+    }
+}
+
+int osd_draw(uint32_t *buf, int w, int h, int fps, int cap, int load, int paced, int full, const char *mode) {
+    char top[32], pct[8];
+    int x = 1, y = 1, bw, bh, bx, bl, fill;
+
     fb = buf;
     fw = w;
     fh = h;
     memset(fb, 0, (size_t)w * h * 4);
-    kp_geometry(w, h, &px, &py);
-    grid(px, py, KP_CW, kp_names, "Keypad", kp_sel, kp_down || kp_touch >= 0, JAVACALL_KEY_INVALID,
-         GLYPH_CROSS, "Press", GLYPH_CIRCLE, "Hide");
+    if (!paced && cap > fps)
+        snprintf(top, sizeof(top), "%d/%d FPS", fps, cap);
+    else
+        snprintf(top, sizeof(top), "%d FPS", fps);
+    if (!full) {
+        bw = CHAR_W * (int)strlen(top) + 16;
+        bh = 22;
+        round_box(x + 1, y + 2, bw, bh, 6, T(TC_SHADOW), T(TC_SHADOW));
+        round_box(x, y, bw, bh, 6, T(TC_BAR_EDGE), T(TC_BAR_EDGE));
+        round_box(x + 1, y + 1, bw - 2, bh - 2, 5, T(TC_BAR_TOP), T(TC_BAR_BOT));
+        text_center(x + bw / 2, y + 3, bw, top, T(TC_BAR_TEXT));
+        return bw + 3;
+    }
+    bw = w - 4;
+    bh = 22 + 3 * 18 + 6;
+    round_box(x + 2, y + 3, bw, bh, 6, T(TC_SHADOW), T(TC_SHADOW));
+    round_box(x, y, bw, bh, 6, COL_EDGE, COL_EDGE);
+    round_rows(x + 1, y + 1, bw - 2, bh - 2, 5, 0, 21, T(TC_BAR_TOP), T(TC_BAR_BOT));
+    round_rows(x + 1, y + 1, bw - 2, bh - 2, 5, 21, bh - 2, T(TC_PANEL_TOP), T(TC_PANEL_BOT));
+    hline(x + 1, x + bw - 2, y + 21, C(T(TC_BAR_EDGE)));
+    text_center(x + bw / 2, y + 3, bw - 8, top, T(TC_BAR_TEXT));
+
+    y += 26;
+    text(x + 8, y, 32, "CPU", COL_DIM);
+    bx = x + 42;
+    bl = bw - 42 - 44;
+    round_box(bx, y + 4, bl, 9, 4, T(TC_WELL_EDGE), T(TC_WELL_EDGE));
+    round_box(bx + 1, y + 5, bl - 2, 7, 3, T(TC_WELL), T(TC_WELL));
+    fill = (bl - 2) * (load < 0 ? 0 : load > 100 ? 100 : load) / 100;
+    if (fill > 0)
+        round_box(bx + 1, y + 5, fill, 7, fill < 7 ? fill / 2 : 3, T(TC_ACCENT), T(TC_ACCENT));
+    snprintf(pct, sizeof(pct), "%d%%", load);
+    text_right(x + bw - 8, y, 40, pct, COL_TEXT);
+    /* paced: the game waits on its own timer, more CPU would not add frames */
+    text(x + 8, y + 18, bw - 16, paced ? "Game limit" : "CPU limit", COL_TEXT);
+    text(x + 8, y + 36, bw - 16, mode, COL_DIM);
+    return bw + 4;
 }
 
 void menu_draw(uint32_t *buf, int w, int h) {
@@ -625,11 +847,12 @@ void menu_draw(uint32_t *buf, int w, int h) {
     px = (w - pw) / 2;
     py = (h - ph) / 2;
     if (page == PAGE_MAIN)
-        title = restart_needed ? "Applies when the game restarts" : j2v_in_game ? "Options" : "Global settings";
+        title = restart_needed ? "Applies when the game restarts" : group ? labels[group]
+                : j2v_in_game ? "Options" : "Global settings";
     else
         title = "Controls";
     y0 = panel(px, py, pw, ph, title, restart_needed && page == PAGE_MAIN ? COL_ACCENT : T(TC_BAR_TEXT),
-               GLYPH_CROSS, "Select", GLYPH_CIRCLE, page == PAGE_MAIN && !j2v_in_game ? "Close" : "Back");
+               GLYPH_CROSS, "Select", GLYPH_CIRCLE, page == PAGE_MAIN && !group && !j2v_in_game ? "Close" : "Back");
     if (page == PAGE_PICK) {
         int save = sel;
         page = PAGE_CONTROLS;
@@ -644,4 +867,8 @@ void menu_draw(uint32_t *buf, int w, int h) {
     } else {
         draw_list(px, pw, y0);
     }
+    /* see through a little: 80% in game, 95% over the launcher */
+    for (i = 0; i < w * h; i++)
+        if ((fb[i] >> 24) == 0xFF)
+            fb[i] = (fb[i] & 0xFFFFFF) | (j2v_in_game ? 0xCC000000u : 0xF2000000u);
 }
