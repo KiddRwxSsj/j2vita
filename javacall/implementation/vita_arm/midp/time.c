@@ -2,7 +2,7 @@
 #include <psp2/kernel/threadmgr.h>
 #include <psp2/kernel/processmgr.h>
 #include <psp2/kernel/cpu.h>
-#define J2V_HELPER_CPUS (SCE_KERNEL_CPU_MASK_USER_1 | SCE_KERNEL_CPU_MASK_USER_2)
+#define J2V_HELPER_CPUS 0
 #include <sys/time.h>
 #include <time.h>
 #include <stdint.h>

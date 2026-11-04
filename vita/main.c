@@ -85,6 +85,10 @@ static void seed_data(void) {
         sceIoClose(f);
     }
     fresh = strcmp(stamp, J2V_VERSION) != 0;
+    /* walking both trees costs a stat per file on every boot, only redo it when something is gone */
+    if (!fresh && exists(J2V_DATA "/lib/skin.bin") && exists(J2V_DATA "/appdb/_main.ks") &&
+        exists(J2V_DATA "/j2vita.ini"))
+        return;
 
     /* system files follow the VPK, installed games (appdb) and settings are kept */
     copy_tree("app0:/runtime/lib", J2V_DATA "/lib", fresh);
@@ -99,8 +103,9 @@ static void seed_data(void) {
 
 static int starter(SceSize args, void *argp) {
     (void)args; (void)argp;
-    /* JavaTask has to be waiting on its event queue before the start event lands */
-    sceKernelDelayThread(500000);
+    /* the start event is lost if it lands before JavaTask has made its event queue */
+    while (!j2v_events_ready)
+        sceKernelDelayThread(1000);
     javanotify_start();
     return 0;
 }
@@ -113,7 +118,7 @@ int main(int argc, char *argv[]) {
     javacall_log_open();
     javacall_printf("J2Vita %s\n", J2V_VERSION);
 
-    /* the C interpreter is CPU bound, run the ARM cores at full speed */
+    /* the interpreter is CPU bound, run the ARM cores at full speed */
     scePowerSetArmClockFrequency(444);
     scePowerSetBusClockFrequency(222);
 
@@ -122,11 +127,9 @@ int main(int argc, char *argv[]) {
     video_start();
 
     th = sceKernelCreateThread("j2v_start", starter, 0x10000100, 0x4000, J2V_HELPER_CPUS, 0, NULL);
-    if (th >= 0)
-        sceKernelStartThread(th, 0, NULL);
+    if (th < 0 || sceKernelStartThread(th, 0, NULL) < 0)
+        javacall_printf("j2v_start thread failed: 0x%08x\n", th);
 
-    /* the interpreter gets core 0 to itself, render/input/timer use the other two */
-    sceKernelChangeThreadCpuAffinityMask(sceKernelGetThreadId(), SCE_KERNEL_CPU_MASK_USER_0);
     JavaTask();
 
     javacall_printf("JavaTask returned\n");
