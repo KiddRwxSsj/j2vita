@@ -16,12 +16,13 @@ Assassin's Creed 3 | Playable |
 Assassin's Creed Brotherhood | Playable |
 Assassin's Creed Revelations | Playable |
 Batman: Guardian of Gotham | Playable |
+Batman: The Dark Knight Rises | Playable |
 Ben 10 | Playable |
 Block Breaker | Playable |
-Crazy Taxi | Broken | Crashes when entering a match
-Crash Titans | Playable |
-CSI: Miami | Playable |
 Chuck Norris: Bring on the Pain | Broken | Game speed issues
+Crash Titans | Playable |
+Crazy Taxi | Broken | Crashes when entering a match
+CSI: Miami | Playable |
 Diamond Rush | Playable |
 Doodle Jump | Playable |
 Dungeon Hunter: Curse of Heaven | Playable |
@@ -33,9 +34,12 @@ God of War: Betrayal | Playable |
 Heroic Epic | Playable | Fixed in 0.9.1
 Heroic Epic 2 | Playable | Fixed in 0.9.1
 Iron Man 3 | Playable |
+Lego Batman | Playable |
 Little NinjaKing | Playable |
 Metal Gear Acid 2 | Playable |
-Modern Combat 4: Zero Hour | Issues | Low FPS
+Modern Combat 2: Black Pegasus | Playable |
+Modern Combat 4: Zero Hour | Playable | Low FPS fixed in 0.9.2
+N. O. V. A. 3 | Playable |
 Prince of Persia 3 | Playable |
 Real Football 2012 | Playable |
 Resident Evil Degeneration | Playable | M3G 3D since 0.9.1
@@ -46,6 +50,7 @@ Rollercoaster Revolution | Playable | Fixed in 0.9.1
 Sonic Runners Adventure | Playable |
 Spider-Man: Toxic City | Playable |
 Spider-Man: Ultimate Power | Playable | Faster since 0.9.1
+Superman/Batman: Heroes United | Playable |
 TEKKEN MOBILE | Playable | Fights load since 0.9.0
 The Amazing Spider-Man | Playable |
 The Amazing Spider-Man 2 | Playable | Slows down with many enemies on screen
