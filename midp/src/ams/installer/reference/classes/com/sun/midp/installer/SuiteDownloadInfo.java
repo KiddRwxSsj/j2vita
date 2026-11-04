@@ -80,6 +80,13 @@ class SuiteDownloadInfo {
     private static native int openDir(String dir);
     private static native String nextFileInDir0(String dir, int handle);
     private static native void closeDir(int handle);
+    static native String zipEntries0(String zip);
+    static native int fileSize0(String path);
+    static native String listDir0(String dir);
+    static native int dirHash0(String dir, int depth);
+    static native boolean setJarUrl0(int suiteId, String url);
+    static native boolean saveSuites0();
+    static native String suiteJar0(int suiteId);
     private static native String convert2lable0(String str);
 
     private static SuiteDownloadInfo getNextFileInDir(String dir, int handle) {
@@ -95,7 +102,6 @@ class SuiteDownloadInfo {
         	fullpath = fullpath.substring(0, fullpath.length()- 1);
         }
         lable = fullpath.substring(fullpath.lastIndexOf('/') + 1);
-        System.out.println("getNextFileInDir:"+fullpath+" "+lable+(isDir?"[DIR]":""));
         lable = convert2lable0(lable);
         return new SuiteDownloadInfo(fullpath, lable, isDir);
     }
@@ -111,8 +117,8 @@ class SuiteDownloadInfo {
           
           int handle = openDir(dir);
           while (handle != 0 && (info = getNextFileInDir(dir, handle)) != null) {
-            if (info.url.toLowerCase().endsWith(".jad") ||
-                    info.url.toLowerCase().endsWith(".jar") ||
+            String low = info.url.toLowerCase();
+            if (low.endsWith(".jad") || low.endsWith(".jar") || low.endsWith(".zip") ||
                     (info.dir && !info.label.equals("."))) {
                 info.http = false;
                 suites.addElement(info);
