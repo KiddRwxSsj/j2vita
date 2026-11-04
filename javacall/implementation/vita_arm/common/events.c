@@ -15,6 +15,8 @@ static SceUID mutex_id = -1, items_id = -1;
 
 /* time the VM spent blocked here with nothing to run, for the performance OSD */
 volatile uint64_t j2v_vm_idle_us;
+/* set once JavaTask can take events, the frontend waits for it before sending the start event */
+volatile int j2v_events_ready;
 
 static int lockq(void) { return sceKernelWaitSema(mutex_id, 1, NULL); }
 static void unlockq(void) { sceKernelSignalSema(mutex_id, 1); }
@@ -57,6 +59,7 @@ javacall_result javacall_events_init(void) {
     int i; head = tail = count = 0; for (i=0;i<QCAP;i++){q[i].data=NULL;q[i].len=0;}
     mutex_id = sceKernelCreateSema("pspkvm_evt_lock", 0, 1, 1, NULL);
     items_id = sceKernelCreateSema("pspkvm_evt_items", 0, 0, QCAP, NULL);
+    j2v_events_ready = 1;
     return (mutex_id >= 0 && items_id >= 0) ? JAVACALL_OK : JAVACALL_FAIL;
 }
 
@@ -65,7 +68,7 @@ javacall_result javacall_events_finalize(void) {
     for (i=0;i<QCAP;i++) { free(q[i].data); q[i].data=NULL; q[i].len=0; }
     if (mutex_id >= 0) { unlockq(); sceKernelDeleteSema(mutex_id); mutex_id=-1; }
     if (items_id >= 0) { sceKernelDeleteSema(items_id); items_id=-1; }
-    head=tail=count=0; return JAVACALL_OK;
+    head=tail=count=0; j2v_events_ready = 0; return JAVACALL_OK;
 }
 #ifdef __cplusplus
 }

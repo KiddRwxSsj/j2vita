@@ -2,6 +2,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <psp2/io/stat.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -31,12 +32,12 @@ void javacall_dir_close(javacall_handle handle) {
 }
 
 javacall_utf16* javacall_dir_get_next(javacall_handle handle, int* outFilenameLength) {
-    VitaDir *h=(VitaDir*)handle; struct dirent *d; char full[JAVACALL_MAX_FILE_NAME_LENGTH+1]; struct stat st; int len,i,isdir=0;
+    VitaDir *h=(VitaDir*)handle; struct dirent *d; int len,i,isdir;
     if(!h||!h->dir||!outFilenameLength)return NULL;
     d=readdir(h->dir); if(!d)return NULL; len=(int)strlen(d->d_name);
     if(len>=JAVACALL_MAX_FILE_NAME_LENGTH-1)return NULL;
-    snprintf(full,sizeof(full),"%s%s%s",h->path,(h->path[0]&&h->path[strlen(h->path)-1]!='/')?"/":"",d->d_name);
-    if(stat(full,&st)==0 && S_ISDIR(st.st_mode)) isdir=1;
+    /* newlib's dirent is the SceIoDirent from sceIoDread, the type is already there */
+    isdir=SCE_S_ISDIR(d->d_stat.st_mode);
     for(i=0;i<len;i++) h->name[i]=(javacall_utf16)(unsigned char)d->d_name[i];
     if(isdir){h->name[len++]='/';}
     h->name[len]=0; *outFilenameLength=len; return h->name;

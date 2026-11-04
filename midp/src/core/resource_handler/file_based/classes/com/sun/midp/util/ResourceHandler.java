@@ -90,9 +90,10 @@ public class ResourceHandler {
      */
     public static byte[] getSystemImageResource(SecurityToken token, 
                     String imageName) {
-        byte[] imageData = getAmsResource(token, imageName + ".raw");
+        /* no .raw images are shipped, a failed open in the big appdb folder costs ~90 ms on the Vita */
+        byte[] imageData = getAmsResource(token, imageName + ".png");
         if (imageData == null) {
-            imageData = getAmsResource(token, imageName + ".png");
+            imageData = getAmsResource(token, imageName + ".raw");
         }
         
         return imageData;
