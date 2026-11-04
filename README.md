@@ -22,11 +22,6 @@ input, sound, menus) was rewritten for the Vita.
   <img src="screenshots/launcher.png" alt="Game list with folders" width="400"/>
   <img src="screenshots/menu.png" alt="In-game menu" width="400"/>
 </p>
-<p align="center">
-  <img src="screenshots/display.png" alt="Display settings with Auto resolution" width="265"/>
-  <img src="screenshots/controls.png" alt="Controls settings" width="265"/>
-  <img src="screenshots/keypad.png" alt="On-screen keypad settings" width="265"/>
-</p>
 
 The game compatibility list lives on the [project page](https://kiddrwxssj.github.io/j2vita/).
 
